@@ -213,7 +213,6 @@ $package = isset($license_data['package']) ? $license_data['package'] : '';
         </div>
 
         <!-- Plugin Updates Card -->
-        <?php if ($is_active): ?>
         <?php 
         $update_data = get_transient('wssc_update_data');
         $current_version = WSSC_VERSION;
@@ -266,10 +265,19 @@ $package = isset($license_data['package']) ? $license_data['package'] : '';
                         </button>
                         <?php endif; ?>
                     </div>
+                    
+                    <p class="wssc-help-text wssc-muted" style="margin-top: 15px;">
+                        <span class="dashicons dashicons-external"></span>
+                        <?php 
+                        printf(
+                            esc_html__('Updates are fetched from %s', 'woo-stock-sync'),
+                            '<a href="https://github.com/SourovCodes/woo-stock-sync-from-csv/releases" target="_blank">GitHub Releases</a>'
+                        ); 
+                        ?>
+                    </p>
                 </div>
             </div>
         </div>
-        <?php endif; ?>
 
         <!-- Features Info -->
         <div class="wssc-section wssc-card wssc-card-info">

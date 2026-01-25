@@ -6,7 +6,7 @@ Tested up to: 6.4
 Requires PHP: 7.4
 WC requires at least: 5.0
 WC tested up to: 8.0
-Stable tag: 1.1.4
+Stable tag: 1.1.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,12 @@ You can configure this in Settings. Options include: ignore (keep current stock)
 * Added manual "Check for Updates" button in License page
 * Added one-click "Update" button when new version available
 * Improved update UI with version info display
+
+= 1.1.5 =
+* Changed: Updates now fetched from GitHub Releases instead of 3AG API
+* Changed: Updates available to all users (no license required for updates)
+* Improved: Changelog pulled from GitHub release notes
+* Removed: 3AG Update API dependency
 
 = 1.1.4 =
 * Fixed: Stats not resetting between sync runs

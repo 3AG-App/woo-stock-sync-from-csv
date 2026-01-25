@@ -2,7 +2,7 @@
 /**
  * Plugin Updater Class
  * 
- * Handles automatic updates from the 3AG Update API.
+ * Handles automatic updates from GitHub Releases.
  */
 
 if (!defined('ABSPATH')) {
@@ -12,12 +12,17 @@ if (!defined('ABSPATH')) {
 class WSSC_Updater {
     
     /**
-     * API Base URL
+     * GitHub repository owner
      */
-    const API_URL = 'https://3ag.app/api/v3';
+    const GITHUB_OWNER = 'SourovCodes';
     
     /**
-     * Product slug for API
+     * GitHub repository name
+     */
+    const GITHUB_REPO = 'woo-stock-sync-from-csv';
+    
+    /**
+     * Product slug
      */
     const PRODUCT_SLUG = 'woo-stock-sync-from-csv';
     
@@ -40,9 +45,6 @@ class WSSC_Updater {
         add_filter('plugins_api', [$this, 'plugin_info'], 20, 3);
         add_filter('upgrader_post_install', [$this, 'after_install'], 10, 3);
         
-        // Add custom update message
-        add_action('in_plugin_update_message-' . WSSC_PLUGIN_BASENAME, [$this, 'update_message'], 10, 2);
-        
         // Schedule periodic update check
         add_action('wssc_update_check', [$this, 'scheduled_check']);
         if (!wp_next_scheduled('wssc_update_check')) {
@@ -51,14 +53,29 @@ class WSSC_Updater {
     }
     
     /**
-     * Get current domain
+     * Get GitHub API URL for latest release
      */
-    private function get_domain() {
-        return wssc_get_domain();
+    private function get_github_api_url() {
+        return sprintf(
+            'https://api.github.com/repos/%s/%s/releases/latest',
+            self::GITHUB_OWNER,
+            self::GITHUB_REPO
+        );
     }
     
     /**
-     * Check for updates via API
+     * Get GitHub repository URL
+     */
+    private function get_github_repo_url() {
+        return sprintf(
+            'https://github.com/%s/%s',
+            self::GITHUB_OWNER,
+            self::GITHUB_REPO
+        );
+    }
+    
+    /**
+     * Check for updates via GitHub API
      */
     public function check_for_update($transient) {
         if (empty($transient->checked)) {
@@ -81,7 +98,7 @@ class WSSC_Updater {
                 'slug' => self::PRODUCT_SLUG,
                 'plugin' => WSSC_PLUGIN_BASENAME,
                 'new_version' => $update_data['version'],
-                'url' => 'https://3ag.app/products/' . self::PRODUCT_SLUG,
+                'url' => $this->get_github_repo_url(),
                 'package' => $update_data['download_url'],
                 'icons' => [
                     '1x' => WSSC_PLUGIN_URL . 'assets/images/icon-128x128.png',
@@ -91,7 +108,7 @@ class WSSC_Updater {
                     'low' => WSSC_PLUGIN_URL . 'assets/images/banner-772x250.png',
                     'high' => WSSC_PLUGIN_URL . 'assets/images/banner-1544x500.png',
                 ],
-                'tested' => '6.4',
+                'tested' => '6.7',
                 'requires_php' => '7.4',
                 'requires' => '5.8',
             ];
@@ -101,7 +118,7 @@ class WSSC_Updater {
                 'slug' => self::PRODUCT_SLUG,
                 'plugin' => WSSC_PLUGIN_BASENAME,
                 'new_version' => $current_version,
-                'url' => 'https://3ag.app/products/' . self::PRODUCT_SLUG,
+                'url' => $this->get_github_repo_url(),
             ];
         }
         
@@ -109,9 +126,9 @@ class WSSC_Updater {
     }
     
     /**
-     * Get update data from API or cache
+     * Get update data from GitHub API or cache
      */
-    private function get_update_data($force = false) {
+    public function get_update_data($force = false) {
         // Check cache first
         if (!$force) {
             $cached = get_transient(self::CACHE_KEY);
@@ -120,30 +137,17 @@ class WSSC_Updater {
             }
         }
         
-        // Get license key
-        $license_key = get_option('wssc_license_key');
-        
-        if (empty($license_key)) {
-            return null;
-        }
-        
-        // Make API request
-        $response = wp_remote_post(self::API_URL . '/update/check', [
+        // Make GitHub API request
+        $response = wp_remote_get($this->get_github_api_url(), [
             'timeout' => 30,
             'headers' => [
-                'Content-Type' => 'application/json',
-                'Accept' => 'application/json',
+                'Accept' => 'application/vnd.github.v3+json',
+                'User-Agent' => 'WordPress/' . get_bloginfo('version') . '; ' . home_url(),
             ],
-            'body' => wp_json_encode([
-                'license_key' => $license_key,
-                'product_slug' => self::PRODUCT_SLUG,
-                'domain' => $this->get_domain(),
-            ]),
         ]);
         
         if (is_wp_error($response)) {
-            // Log error but don't break
-            error_log('WSSC Update Check Error: ' . $response->get_error_message());
+            error_log('WSSC GitHub Update Check Error: ' . $response->get_error_message());
             return null;
         }
         
@@ -151,17 +155,44 @@ class WSSC_Updater {
         $body = wp_remote_retrieve_body($response);
         $data = json_decode($body, true);
         
-        if ($code !== 200 || empty($data['data'])) {
-            // Log non-200 responses
-            if ($code !== 200) {
-                error_log('WSSC Update Check HTTP ' . $code . ': ' . ($data['message'] ?? 'Unknown error'));
+        if ($code !== 200 || empty($data)) {
+            if ($code === 404) {
+                error_log('WSSC GitHub Update Check: No releases found');
+            } else {
+                error_log('WSSC GitHub Update Check HTTP ' . $code . ': ' . ($data['message'] ?? 'Unknown error'));
             }
             return null;
         }
         
+        // Extract version from tag_name (remove 'v' prefix if present)
+        $version = isset($data['tag_name']) ? ltrim($data['tag_name'], 'v') : null;
+        
+        // Find the zip download URL from assets
+        $download_url = null;
+        if (!empty($data['assets']) && is_array($data['assets'])) {
+            foreach ($data['assets'] as $asset) {
+                // Look for the latest zip file
+                if (isset($asset['name']) && strpos($asset['name'], '-latest.zip') !== false) {
+                    $download_url = $asset['browser_download_url'];
+                    break;
+                }
+                // Fallback to versioned zip
+                if (isset($asset['name']) && preg_match('/\.zip$/', $asset['name'])) {
+                    $download_url = $asset['browser_download_url'];
+                }
+            }
+        }
+        
+        // Fallback to zipball_url if no asset found
+        if (empty($download_url) && !empty($data['zipball_url'])) {
+            $download_url = $data['zipball_url'];
+        }
+        
         $update_data = [
-            'version' => $data['data']['version'] ?? null,
-            'download_url' => $data['data']['download_url'] ?? null,
+            'version' => $version,
+            'download_url' => $download_url,
+            'changelog' => $data['body'] ?? '',
+            'release_date' => $data['published_at'] ?? null,
             'checked' => time(),
         ];
         
@@ -189,18 +220,18 @@ class WSSC_Updater {
             'name' => 'Woo Stock Sync from CSV',
             'slug' => self::PRODUCT_SLUG,
             'version' => $update_data['version'] ?? WSSC_VERSION,
-            'author' => '<a href="https://3ag.app">3AG</a>',
-            'author_profile' => 'https://3ag.app',
-            'homepage' => 'https://3ag.app/products/' . self::PRODUCT_SLUG,
+            'author' => '<a href="https://github.com/' . self::GITHUB_OWNER . '">SourovCodes</a>',
+            'author_profile' => 'https://github.com/' . self::GITHUB_OWNER,
+            'homepage' => $this->get_github_repo_url(),
             'requires' => '5.8',
-            'tested' => '6.4',
+            'tested' => '6.7',
             'requires_php' => '7.4',
             'downloaded' => 0,
-            'last_updated' => date('Y-m-d H:i:s'),
+            'last_updated' => $update_data['release_date'] ?? date('Y-m-d H:i:s'),
             'sections' => [
                 'description' => $this->get_plugin_description(),
                 'installation' => $this->get_installation_instructions(),
-                'changelog' => $this->get_changelog(),
+                'changelog' => $this->get_changelog($update_data),
             ],
             'download_link' => $update_data['download_url'] ?? '',
             'banners' => [
@@ -227,7 +258,8 @@ class WSSC_Updater {
             <li><strong>Watchdog Cron</strong> - Automatic recovery if scheduled sync stops working</li>
             <li><strong>Detailed Logs</strong> - Complete history of all sync operations</li>
             <li><strong>Modern UI</strong> - Clean, intuitive admin interface</li>
-        </ul>';
+        </ul>
+        <p><a href="' . esc_url($this->get_github_repo_url()) . '" target="_blank">View on GitHub</a></p>';
     }
     
     /**
@@ -235,6 +267,7 @@ class WSSC_Updater {
      */
     private function get_installation_instructions() {
         return '<ol>
+            <li>Download the latest release from <a href="' . esc_url($this->get_github_repo_url() . '/releases') . '">GitHub Releases</a></li>
             <li>Upload the plugin files to <code>/wp-content/plugins/woo-stock-sync-from-csv</code></li>
             <li>Activate the plugin through the \'Plugins\' screen in WordPress</li>
             <li>Go to Stock Sync → License to activate your license key</li>
@@ -244,13 +277,33 @@ class WSSC_Updater {
     }
     
     /**
-     * Get changelog from readme.txt
+     * Get changelog from GitHub release or readme.txt
      */
-    private function get_changelog() {
+    private function get_changelog($update_data = null) {
+        // First try to use GitHub release notes
+        if (!empty($update_data['changelog'])) {
+            // Convert markdown to basic HTML
+            $changelog = $update_data['changelog'];
+            
+            // Convert headers
+            $changelog = preg_replace('/^### (.+)$/m', '<h4>$1</h4>', $changelog);
+            $changelog = preg_replace('/^## (.+)$/m', '<h3>$1</h3>', $changelog);
+            
+            // Convert bullet points
+            $changelog = preg_replace('/^[*-] (.+)$/m', '<li>$1</li>', $changelog);
+            $changelog = preg_replace('/(<li>.+<\/li>\n?)+/s', '<ul>$0</ul>', $changelog);
+            
+            // Convert line breaks
+            $changelog = nl2br($changelog);
+            
+            return $changelog;
+        }
+        
+        // Fallback to readme.txt
         $readme_file = WSSC_PLUGIN_DIR . 'readme.txt';
         
         if (!file_exists($readme_file)) {
-            return '<p>See the plugin readme for full changelog.</p>';
+            return '<p>See the <a href="' . esc_url($this->get_github_repo_url() . '/releases') . '">GitHub releases</a> for full changelog.</p>';
         }
         
         $readme = file_get_contents($readme_file);
@@ -267,7 +320,7 @@ class WSSC_Updater {
             return $changelog;
         }
         
-        return '<p>See the plugin readme for full changelog.</p>';
+        return '<p>See the <a href="' . esc_url($this->get_github_repo_url() . '/releases') . '">GitHub releases</a> for full changelog.</p>';
     }
     
     /**
@@ -304,20 +357,6 @@ class WSSC_Updater {
         activate_plugin(WSSC_PLUGIN_BASENAME);
         
         return $response;
-    }
-    
-    /**
-     * Display update message on plugins page
-     */
-    public function update_message($plugin_data, $response) {
-        // Check if license is valid
-        if (!WSSC()->license->is_valid()) {
-            echo '<br><span style="color: #d63638; font-weight: 600;">';
-            echo esc_html__('Please activate a valid license to enable automatic updates.', 'woo-stock-sync');
-            echo ' <a href="' . esc_url(admin_url('admin.php?page=woo-stock-sync-license')) . '">';
-            echo esc_html__('Activate License', 'woo-stock-sync');
-            echo '</a></span>';
-        }
     }
     
     /**

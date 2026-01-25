@@ -374,14 +374,7 @@ class WSSC_Ajax {
     public function check_update() {
         $this->verify_nonce();
         
-        // Validate license
-        if (!WSSC()->license->is_valid()) {
-            wp_send_json_error([
-                'message' => __('Please activate a valid license first.', 'woo-stock-sync'),
-            ]);
-        }
-        
-        // Force check for updates
+        // Force check for updates from GitHub
         WSSC()->updater->force_check();
         
         // Get fresh update data
@@ -415,13 +408,6 @@ class WSSC_Ajax {
      */
     public function install_update() {
         $this->verify_nonce();
-        
-        // Validate license
-        if (!WSSC()->license->is_valid()) {
-            wp_send_json_error([
-                'message' => __('Please activate a valid license first.', 'woo-stock-sync'),
-            ]);
-        }
         
         // Check for update data
         $update_data = get_transient('wssc_update_data');
