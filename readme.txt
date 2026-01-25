@@ -6,7 +6,7 @@ Tested up to: 6.4
 Requires PHP: 7.4
 WC requires at least: 5.0
 WC tested up to: 8.0
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,11 @@ Yes, the plugin supports both simple products and product variations. Each varia
 You can configure this in Settings. Options include: ignore (keep current stock), set stock to 0, or make the product private (and restore when it returns).
 
 == Changelog ==
+
+= 1.1.1 =
+* Added manual "Check for Updates" button in License page
+* Added one-click "Update" button when new version available
+* Improved update UI with version info display
 
 = 1.1.0 =
 * Added automatic updates via 3AG Update API

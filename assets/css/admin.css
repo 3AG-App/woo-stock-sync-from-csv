@@ -1490,3 +1490,63 @@
         flex-direction: column;
     }
 }
+
+/* Plugin Updates Section */
+.wssc-update-status {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.wssc-version-info {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.wssc-version-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.wssc-version-label {
+    color: var(--wssc-gray-500);
+    min-width: 140px;
+}
+
+.wssc-version-value {
+    font-weight: 600;
+    color: var(--wssc-gray-800);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.wssc-version-new {
+    color: var(--wssc-primary);
+}
+
+.wssc-update-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    background: var(--wssc-primary-light);
+    color: var(--wssc-primary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 4px;
+}
+
+.wssc-update-actions {
+    display: flex;
+    gap: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--wssc-gray-200);
+}
+
+/* Toast info type */
+.wssc-toast-info {
+    background: var(--wssc-primary);
+    color: #fff;
+}

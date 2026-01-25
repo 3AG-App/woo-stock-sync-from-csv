@@ -27,6 +27,8 @@ class WSSC_Ajax {
         add_action('wp_ajax_wssc_get_log_details', [$this, 'get_log_details']);
         add_action('wp_ajax_wssc_get_sync_status', [$this, 'get_sync_status']);
         add_action('wp_ajax_wssc_toggle_sync', [$this, 'toggle_sync']);
+        add_action('wp_ajax_wssc_check_update', [$this, 'check_update']);
+        add_action('wp_ajax_wssc_install_update', [$this, 'install_update']);
     }
     
     /**
@@ -327,6 +329,121 @@ class WSSC_Ajax {
         wp_send_json_success([
             'message' => $message,
             'enabled' => $enabled,
+        ]);
+    }
+    
+    /**
+     * Check for plugin updates
+     */
+    public function check_update() {
+        $this->verify_nonce();
+        
+        // Validate license
+        if (!WSSC()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-stock-sync'),
+            ]);
+        }
+        
+        // Force check for updates
+        WSSC()->updater->force_check();
+        
+        // Get fresh update data
+        $update_data = get_transient('wssc_update_data');
+        $current_version = WSSC_VERSION;
+        $has_update = $update_data && !empty($update_data['version']) && version_compare($current_version, $update_data['version'], '<');
+        
+        if ($has_update) {
+            wp_send_json_success([
+                'message' => sprintf(
+                    __('Update available! Version %s is ready to install.', 'woo-stock-sync'),
+                    $update_data['version']
+                ),
+                'has_update' => true,
+                'current_version' => $current_version,
+                'new_version' => $update_data['version'],
+                'download_url' => $update_data['download_url'],
+            ]);
+        } else {
+            wp_send_json_success([
+                'message' => __('You are running the latest version.', 'woo-stock-sync'),
+                'has_update' => false,
+                'current_version' => $current_version,
+                'new_version' => $update_data['version'] ?? $current_version,
+            ]);
+        }
+    }
+    
+    /**
+     * Install plugin update
+     */
+    public function install_update() {
+        $this->verify_nonce();
+        
+        // Validate license
+        if (!WSSC()->license->is_valid()) {
+            wp_send_json_error([
+                'message' => __('Please activate a valid license first.', 'woo-stock-sync'),
+            ]);
+        }
+        
+        // Check for update data
+        $update_data = get_transient('wssc_update_data');
+        
+        if (!$update_data || empty($update_data['download_url'])) {
+            wp_send_json_error([
+                'message' => __('No update available or download URL missing.', 'woo-stock-sync'),
+            ]);
+        }
+        
+        // Include required files for plugin update
+        require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/misc.php';
+        
+        // Use a silent skin to prevent output
+        $skin = new WP_Ajax_Upgrader_Skin();
+        $upgrader = new Plugin_Upgrader($skin);
+        
+        // Deactivate the plugin before upgrading
+        deactivate_plugins(WSSC_PLUGIN_BASENAME);
+        
+        // Clear the plugin from update cache to force fresh install
+        $result = $upgrader->install($update_data['download_url'], [
+            'overwrite_package' => true,
+        ]);
+        
+        if (is_wp_error($result)) {
+            // Reactivate plugin on failure
+            activate_plugin(WSSC_PLUGIN_BASENAME);
+            wp_send_json_error([
+                'message' => $result->get_error_message(),
+            ]);
+        }
+        
+        if ($result === false) {
+            // Reactivate plugin on failure
+            activate_plugin(WSSC_PLUGIN_BASENAME);
+            wp_send_json_error([
+                'message' => __('Update failed. Please try again or update manually.', 'woo-stock-sync'),
+            ]);
+        }
+        
+        // Reactivate the plugin
+        activate_plugin(WSSC_PLUGIN_BASENAME);
+        
+        // Clear update cache
+        WSSC()->updater->clear_cache();
+        delete_site_transient('update_plugins');
+        
+        wp_send_json_success([
+            'message' => sprintf(
+                __('Successfully updated to version %s. Please refresh the page.', 'woo-stock-sync'),
+                $update_data['version']
+            ),
+            'new_version' => $update_data['version'],
+            'reload' => true,
         ]);
     }
 }

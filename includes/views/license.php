@@ -212,6 +212,65 @@ $package = isset($license_data['package']) ? $license_data['package'] : '';
             </div>
         </div>
 
+        <!-- Plugin Updates Card -->
+        <?php if ($is_active): ?>
+        <?php 
+        $update_data = get_transient('wssc_update_data');
+        $current_version = WSSC_VERSION;
+        $has_update = $update_data && !empty($update_data['version']) && version_compare($current_version, $update_data['version'], '<');
+        ?>
+        <div class="wssc-section wssc-card">
+            <div class="wssc-card-header">
+                <h2>
+                    <span class="dashicons dashicons-update"></span>
+                    <?php esc_html_e('Plugin Updates', 'woo-stock-sync'); ?>
+                </h2>
+            </div>
+            <div class="wssc-card-body">
+                <div class="wssc-update-status">
+                    <div class="wssc-version-info">
+                        <div class="wssc-version-row">
+                            <span class="wssc-version-label"><?php esc_html_e('Installed Version:', 'woo-stock-sync'); ?></span>
+                            <span class="wssc-version-value"><?php echo esc_html($current_version); ?></span>
+                        </div>
+                        <?php if ($update_data && !empty($update_data['version'])): ?>
+                        <div class="wssc-version-row">
+                            <span class="wssc-version-label"><?php esc_html_e('Latest Version:', 'woo-stock-sync'); ?></span>
+                            <span class="wssc-version-value <?php echo $has_update ? 'wssc-version-new' : ''; ?>">
+                                <?php echo esc_html($update_data['version']); ?>
+                                <?php if ($has_update): ?>
+                                    <span class="wssc-update-badge"><?php esc_html_e('Update Available', 'woo-stock-sync'); ?></span>
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                        <?php if (!empty($update_data['checked'])): ?>
+                        <div class="wssc-version-row">
+                            <span class="wssc-version-label"><?php esc_html_e('Last Checked:', 'woo-stock-sync'); ?></span>
+                            <span class="wssc-version-value wssc-muted">
+                                <?php echo esc_html(human_time_diff($update_data['checked'])); ?> <?php esc_html_e('ago', 'woo-stock-sync'); ?>
+                            </span>
+                        </div>
+                        <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="wssc-update-actions">
+                        <button type="button" id="wssc-check-update" class="wssc-btn wssc-btn-secondary">
+                            <span class="dashicons dashicons-update"></span>
+                            <?php esc_html_e('Check for Updates', 'woo-stock-sync'); ?>
+                        </button>
+                        <?php if ($has_update): ?>
+                        <button type="button" id="wssc-install-update" class="wssc-btn wssc-btn-primary" data-version="<?php echo esc_attr($update_data['version']); ?>">
+                            <span class="dashicons dashicons-download"></span>
+                            <?php printf(esc_html__('Update to %s', 'woo-stock-sync'), esc_html($update_data['version'])); ?>
+                        </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Features Info -->
         <div class="wssc-section wssc-card wssc-card-info">
             <div class="wssc-card-header">

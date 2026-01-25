@@ -38,6 +38,10 @@
             $('#wssc-deactivate-license').on('click', this.deactivateLicense.bind(this));
             $('#wssc-check-license').on('click', this.checkLicense.bind(this));
 
+            // Updates
+            $('#wssc-check-update').on('click', this.checkUpdate.bind(this));
+            $('#wssc-install-update').on('click', this.installUpdate.bind(this));
+
             // Modal
             $('.wssc-modal-close').on('click', this.closeModal.bind(this));
             $('.wssc-modal').on('click', function (e) {
@@ -483,6 +487,85 @@
                 })
                 .always(function () {
                     $btn.prop('disabled', false);
+                });
+        },
+
+        /**
+         * Check for plugin updates
+         */
+        checkUpdate: function (e) {
+            e.preventDefault();
+
+            const $btn = $('#wssc-check-update');
+            const originalHtml = $btn.html();
+            
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Checking...');
+
+            this.ajax('wssc_check_update', {})
+                .done(function (response) {
+                    if (response.success) {
+                        WSSC.toast(response.data.message, response.data.has_update ? 'info' : 'success');
+                        
+                        if (response.data.has_update) {
+                            // Reload to show update button
+                            setTimeout(function () {
+                                location.reload();
+                            }, 1500);
+                        }
+                    } else {
+                        WSSC.toast(response.data.message, 'error');
+                    }
+                })
+                .fail(function () {
+                    WSSC.toast('Failed to check for updates', 'error');
+                })
+                .always(function () {
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
+        },
+
+        /**
+         * Install plugin update
+         */
+        installUpdate: function (e) {
+            e.preventDefault();
+
+            const $btn = $('#wssc-install-update');
+            const version = $btn.data('version');
+            
+            if (!confirm('Are you sure you want to update to version ' + version + '?')) {
+                return;
+            }
+
+            const originalHtml = $btn.html();
+            
+            $btn.prop('disabled', true)
+                .html('<span class="wssc-spinner"></span> Updating...');
+            
+            // Disable other buttons during update
+            $('#wssc-check-update').prop('disabled', true);
+
+            this.ajax('wssc_install_update', {})
+                .done(function (response) {
+                    if (response.success) {
+                        WSSC.toast(response.data.message, 'success');
+                        
+                        if (response.data.reload) {
+                            setTimeout(function () {
+                                location.reload();
+                            }, 2000);
+                        }
+                    } else {
+                        WSSC.toast(response.data.message, 'error');
+                        $btn.prop('disabled', false).html(originalHtml);
+                        $('#wssc-check-update').prop('disabled', false);
+                    }
+                })
+                .fail(function () {
+                    WSSC.toast('Update failed. Please try again.', 'error');
+                    $btn.prop('disabled', false).html(originalHtml);
+                    $('#wssc-check-update').prop('disabled', false);
                 });
         },
 
