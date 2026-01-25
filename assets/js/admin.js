@@ -498,7 +498,7 @@
 
             const $btn = $('#wssc-check-update');
             const originalHtml = $btn.html();
-            
+
             $btn.prop('disabled', true)
                 .html('<span class="wssc-spinner"></span> Checking...');
 
@@ -506,7 +506,7 @@
                 .done(function (response) {
                     if (response.success) {
                         WSSC.toast(response.data.message, response.data.has_update ? 'info' : 'success');
-                        
+
                         if (response.data.has_update) {
                             // Reload to show update button
                             setTimeout(function () {
@@ -533,16 +533,16 @@
 
             const $btn = $('#wssc-install-update');
             const version = $btn.data('version');
-            
+
             if (!confirm('Are you sure you want to update to version ' + version + '?')) {
                 return;
             }
 
             const originalHtml = $btn.html();
-            
+
             $btn.prop('disabled', true)
                 .html('<span class="wssc-spinner"></span> Updating...');
-            
+
             // Disable other buttons during update
             $('#wssc-check-update').prop('disabled', true);
 
@@ -550,7 +550,7 @@
                 .done(function (response) {
                     if (response.success) {
                         WSSC.toast(response.data.message, 'success');
-                        
+
                         if (response.data.reload) {
                             setTimeout(function () {
                                 location.reload();

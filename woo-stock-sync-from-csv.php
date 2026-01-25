@@ -3,7 +3,7 @@
  * Plugin Name: Woo Stock Sync from CSV
  * Plugin URI: https://3ag.app/products/woo-stock-sync-from-csv
  * Description: Automatically sync WooCommerce product stock from a CSV URL on a scheduled basis.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Author: 3AG
  * Author URI: https://3ag.app
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WSSC_VERSION', '1.1.1');
+define('WSSC_VERSION', '1.1.2');
 define('WSSC_PLUGIN_FILE', __FILE__);
 define('WSSC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WSSC_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -165,18 +165,16 @@ final class Woo_Stock_Sync_From_CSV {
      * Deactivation
      */
     public function deactivate() {
-        // Clear scheduled events
+        // Clear scheduled events only
+        // License should persist across deactivation/reactivation
         wp_clear_scheduled_hook('wssc_sync_event');
         wp_clear_scheduled_hook('wssc_watchdog_check');
         wp_clear_scheduled_hook('wssc_license_check');
         wp_clear_scheduled_hook('wssc_update_check');
         
-        // Deactivate license
-        $license_key = get_option('wssc_license_key');
-        if ($license_key) {
-            $license = new WSSC_License();
-            $license->deactivate($license_key);
-        }
+        // NOTE: We do NOT deactivate the license here
+        // License deactivation should only happen when user explicitly clicks "Deactivate License"
+        // This allows the plugin to be deactivated/reactivated or updated without losing license
     }
     
     /**
