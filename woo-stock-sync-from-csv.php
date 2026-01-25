@@ -1,0 +1,213 @@
+<?php
+/**
+ * Plugin Name: Woo Stock Sync from CSV
+ * Plugin URI: https://3ag.app/products/woo-stock-sync-from-csv
+ * Description: Automatically sync WooCommerce product stock from a CSV URL on a scheduled basis.
+ * Version: 1.0.0
+ * Author: 3AG
+ * Author URI: https://3ag.app
+ * License: GPL v2 or later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: woo-stock-sync
+ * Domain Path: /languages
+ * Requires at least: 5.8
+ * Requires PHP: 7.4
+ * WC requires at least: 5.0
+ * WC tested up to: 8.0
+ */
+
+// Prevent direct access
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+// Plugin constants
+define('WSSC_VERSION', '1.0.0');
+define('WSSC_PLUGIN_FILE', __FILE__);
+define('WSSC_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('WSSC_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('WSSC_PLUGIN_BASENAME', plugin_basename(__FILE__));
+define('WSSC_PRODUCT_SLUG', 'woo-stock-sync-from-csv');
+
+// Autoloader
+spl_autoload_register(function ($class) {
+    $prefix = 'WSSC_';
+    if (strpos($class, $prefix) !== 0) {
+        return;
+    }
+    
+    $class_name = str_replace($prefix, '', $class);
+    $class_name = strtolower(str_replace('_', '-', $class_name));
+    $file = WSSC_PLUGIN_DIR . 'includes/class-' . $class_name . '.php';
+    
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
+
+/**
+ * Main Plugin Class
+ */
+final class Woo_Stock_Sync_From_CSV {
+    
+    /**
+     * Single instance
+     */
+    private static $instance = null;
+    
+    /**
+     * Plugin components
+     */
+    public $license;
+    public $sync;
+    public $scheduler;
+    public $logs;
+    public $admin;
+    public $ajax;
+    
+    /**
+     * Get instance
+     */
+    public static function instance() {
+        if (is_null(self::$instance)) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    /**
+     * Constructor
+     */
+    private function __construct() {
+        $this->init_hooks();
+    }
+    
+    /**
+     * Initialize hooks
+     */
+    private function init_hooks() {
+        register_activation_hook(__FILE__, [$this, 'activate']);
+        register_deactivation_hook(__FILE__, [$this, 'deactivate']);
+        
+        add_action('plugins_loaded', [$this, 'init']);
+        add_action('init', [$this, 'load_textdomain']);
+    }
+    
+    /**
+     * Initialize plugin
+     */
+    public function init() {
+        // Check WooCommerce dependency
+        if (!class_exists('WooCommerce')) {
+            add_action('admin_notices', [$this, 'woocommerce_missing_notice']);
+            return;
+        }
+        
+        // Initialize components
+        $this->license = new WSSC_License();
+        $this->logs = new WSSC_Logs();
+        $this->sync = new WSSC_Sync();
+        $this->scheduler = new WSSC_Scheduler();
+        $this->ajax = new WSSC_Ajax();
+        
+        if (is_admin()) {
+            $this->admin = new WSSC_Admin();
+        }
+        
+        // HPOS compatibility
+        add_action('before_woocommerce_init', function() {
+            if (class_exists(\Automattic\WooCommerce\Utilities\FeaturesUtil::class)) {
+                \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility('custom_order_tables', __FILE__, true);
+            }
+        });
+    }
+    
+    /**
+     * Load text domain
+     */
+    public function load_textdomain() {
+        load_plugin_textdomain('woo-stock-sync', false, dirname(WSSC_PLUGIN_BASENAME) . '/languages');
+    }
+    
+    /**
+     * Activation
+     */
+    public function activate() {
+        // Create logs table
+        WSSC_Logs::create_table();
+        
+        // Set default options
+        $defaults = [
+            'csv_url' => '',
+            'sku_column' => 'sku',
+            'quantity_column' => 'quantity',
+            'schedule_interval' => 'hourly',
+            'enabled' => false,
+        ];
+        
+        foreach ($defaults as $key => $value) {
+            if (get_option('wssc_' . $key) === false) {
+                update_option('wssc_' . $key, $value);
+            }
+        }
+        
+        // Schedule watchdog
+        if (!wp_next_scheduled('wssc_watchdog_check')) {
+            wp_schedule_event(time(), 'wssc_four_hours', 'wssc_watchdog_check');
+        }
+        
+        flush_rewrite_rules();
+    }
+    
+    /**
+     * Deactivation
+     */
+    public function deactivate() {
+        // Clear scheduled events
+        wp_clear_scheduled_hook('wssc_sync_event');
+        wp_clear_scheduled_hook('wssc_watchdog_check');
+        wp_clear_scheduled_hook('wssc_license_check');
+        
+        // Deactivate license
+        $license_key = get_option('wssc_license_key');
+        if ($license_key) {
+            $license = new WSSC_License();
+            $license->deactivate($license_key);
+        }
+    }
+    
+    /**
+     * WooCommerce missing notice
+     */
+    public function woocommerce_missing_notice() {
+        ?>
+        <div class="notice notice-error">
+            <p><?php esc_html_e('Woo Stock Sync from CSV requires WooCommerce to be installed and active.', 'woo-stock-sync'); ?></p>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Get plugin URL
+     */
+    public function plugin_url() {
+        return WSSC_PLUGIN_URL;
+    }
+    
+    /**
+     * Get plugin path
+     */
+    public function plugin_path() {
+        return WSSC_PLUGIN_DIR;
+    }
+}
+
+/**
+ * Main instance
+ */
+function WSSC() {
+    return Woo_Stock_Sync_From_CSV::instance();
+}
+
+// Initialize
+WSSC();
