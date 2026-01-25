@@ -6,7 +6,7 @@ Tested up to: 6.4
 Requires PHP: 7.4
 WC requires at least: 5.0
 WC tested up to: 8.0
-Stable tag: 1.1.7
+Stable tag: 1.1.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,13 @@ You can configure this in Settings. Options include: ignore (keep current stock)
 * Added manual "Check for Updates" button in License page
 * Added one-click "Update" button when new version available
 * Improved update UI with version info display
+
+= 1.1.8 =
+* Performance: Major sync optimization - 10-15x faster for large catalogs
+* Performance: Direct SQL updates instead of WC product save loops
+* Performance: Batch SKU lookups with stock values in single query
+* Performance: Database transactions for faster writes
+* Performance: Optimized cache clearing per-batch instead of per-product
 
 = 1.1.7 =
 * Added: Auto-updates enabled by default

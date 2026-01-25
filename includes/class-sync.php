@@ -319,64 +319,197 @@ class WSSC_Sync {
     }
     
     /**
-     * Process a batch of SKU => quantity pairs
+     * Process a batch of SKU => quantity pairs (optimized with direct SQL)
      */
     private function process_batch($batch) {
         global $wpdb;
         
         $skus = array_keys($batch);
         
-        // Build product lookup
-        $products = $this->get_products_by_skus($skus);
+        // Build product lookup with current stock values
+        $products = $this->get_products_by_skus_with_stock($skus);
         
-        foreach ($batch as $sku => $quantity) {
-            $this->stats['processed']++;
-            
-            if (!isset($products[$sku])) {
-                $this->stats['not_found']++;
-                continue;
-            }
-            
-            $product_id = $products[$sku];
-            
-            try {
-                $product = wc_get_product($product_id);
+        // Start transaction for faster writes
+        $wpdb->query('START TRANSACTION');
+        
+        try {
+            foreach ($batch as $sku => $quantity) {
+                $this->stats['processed']++;
                 
-                if (!$product) {
+                if (!isset($products[$sku])) {
                     $this->stats['not_found']++;
                     continue;
                 }
                 
-                // Check if stock management is enabled
-                if (!$product->managing_stock()) {
-                    // Enable stock management
-                    $product->set_manage_stock(true);
-                }
+                $product_data = $products[$sku];
+                $product_id = $product_data['id'];
+                $current_stock = $product_data['stock'];
+                $manages_stock = $product_data['manages_stock'];
                 
-                $current_stock = $product->get_stock_quantity();
-                
-                if ($current_stock === $quantity) {
+                // Skip if stock is already the same
+                if ($current_stock !== null && (int) $current_stock === $quantity) {
                     $this->stats['skipped']++;
                     continue;
                 }
                 
-                // Update stock
-                $product->set_stock_quantity($quantity);
-                $product->save();
-                
+                // Update stock via direct SQL
+                $this->update_stock_direct($product_id, $quantity, $manages_stock);
                 $this->stats['updated']++;
-                
-            } catch (Exception $e) {
-                $this->stats['errors']++;
-                $this->error_messages[] = sprintf(
-                    __('Error updating SKU %s: %s', 'woo-stock-sync'),
-                    $sku,
-                    $e->getMessage()
+            }
+            
+            $wpdb->query('COMMIT');
+            
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            $this->stats['errors']++;
+            $this->error_messages[] = $e->getMessage();
+        }
+        
+        // Clear caches once per batch (not per product)
+        $this->clear_product_caches(array_column($products, 'id'));
+    }
+    
+    /**
+     * Update stock quantity directly via SQL (bypasses WC hooks for speed)
+     */
+    private function update_stock_direct($product_id, $quantity, $manages_stock = true) {
+        global $wpdb;
+        
+        $stock_status = $quantity > 0 ? 'instock' : 'outofstock';
+        
+        // Enable stock management if not already
+        if (!$manages_stock) {
+            $wpdb->update(
+                $wpdb->postmeta,
+                ['meta_value' => 'yes'],
+                ['post_id' => $product_id, 'meta_key' => '_manage_stock'],
+                ['%s'],
+                ['%d', '%s']
+            );
+            
+            // Insert if doesn't exist
+            if ($wpdb->rows_affected === 0) {
+                $wpdb->insert(
+                    $wpdb->postmeta,
+                    [
+                        'post_id' => $product_id,
+                        'meta_key' => '_manage_stock',
+                        'meta_value' => 'yes',
+                    ],
+                    ['%d', '%s', '%s']
                 );
             }
         }
         
-        // Clear caches
+        // Update stock quantity in postmeta
+        $wpdb->update(
+            $wpdb->postmeta,
+            ['meta_value' => $quantity],
+            ['post_id' => $product_id, 'meta_key' => '_stock'],
+            ['%s'],
+            ['%d', '%s']
+        );
+        
+        // Insert if doesn't exist
+        if ($wpdb->rows_affected === 0) {
+            $wpdb->insert(
+                $wpdb->postmeta,
+                [
+                    'post_id' => $product_id,
+                    'meta_key' => '_stock',
+                    'meta_value' => $quantity,
+                ],
+                ['%d', '%s', '%s']
+            );
+        }
+        
+        // Update stock status
+        $wpdb->update(
+            $wpdb->postmeta,
+            ['meta_value' => $stock_status],
+            ['post_id' => $product_id, 'meta_key' => '_stock_status'],
+            ['%s'],
+            ['%d', '%s']
+        );
+        
+        // Update HPOS lookup table if it exists
+        $lookup_table = $wpdb->prefix . 'wc_product_meta_lookup';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$lookup_table'") === $lookup_table) {
+            $wpdb->update(
+                $lookup_table,
+                [
+                    'stock_quantity' => $quantity,
+                    'stock_status' => $stock_status,
+                ],
+                ['product_id' => $product_id],
+                ['%d', '%s'],
+                ['%d']
+            );
+        }
+    }
+    
+    /**
+     * Get product IDs by SKUs with current stock values (optimized)
+     */
+    private function get_products_by_skus_with_stock($skus) {
+        global $wpdb;
+        
+        $products = [];
+        
+        if (empty($skus)) {
+            return $products;
+        }
+        
+        $placeholders = array_fill(0, count($skus), '%s');
+        $placeholders_str = implode(',', $placeholders);
+        
+        // Get SKU, ID, stock, and manage_stock in one query
+        $query = $wpdb->prepare(
+            "SELECT 
+                sku.meta_value as sku, 
+                sku.post_id as id,
+                stock.meta_value as stock,
+                manage.meta_value as manages_stock
+             FROM {$wpdb->postmeta} sku
+             INNER JOIN {$wpdb->posts} p ON sku.post_id = p.ID
+             LEFT JOIN {$wpdb->postmeta} stock ON sku.post_id = stock.post_id AND stock.meta_key = '_stock'
+             LEFT JOIN {$wpdb->postmeta} manage ON sku.post_id = manage.post_id AND manage.meta_key = '_manage_stock'
+             WHERE sku.meta_key = '_sku' 
+             AND sku.meta_value IN ($placeholders_str)
+             AND p.post_type IN ('product', 'product_variation')
+             AND p.post_status IN ('publish', 'private')",
+            $skus
+        );
+        
+        $results = $wpdb->get_results($query);
+        
+        foreach ($results as $row) {
+            $products[$row->sku] = [
+                'id' => intval($row->id),
+                'stock' => $row->stock !== null ? intval($row->stock) : null,
+                'manages_stock' => $row->manages_stock === 'yes',
+            ];
+        }
+        
+        return $products;
+    }
+    
+    /**
+     * Clear product caches efficiently
+     */
+    private function clear_product_caches($product_ids) {
+        if (empty($product_ids)) {
+            return;
+        }
+        
+        // Clear WC product cache for affected products only
+        foreach ($product_ids as $product_id) {
+            wp_cache_delete('product-' . $product_id, 'products');
+            wp_cache_delete($product_id, 'posts');
+            clean_post_cache($product_id);
+        }
+        
+        // Clear transients once
         wc_delete_product_transients();
     }
     
@@ -440,6 +573,7 @@ class WSSC_Sync {
     
     /**
      * Process missing SKUs (products in store but not in CSV)
+     * Note: Status changes use $product->save() to trigger WooCommerce hooks
      */
     private function process_missing_skus($csv_data, $action) {
         global $wpdb;
@@ -464,13 +598,8 @@ class WSSC_Sync {
                 $product = wc_get_product($product_id);
                 
                 if ($product && $product->get_status() === 'private') {
-                    // Restore to publish using WordPress function
-                    wp_update_post([
-                        'ID' => $product_id,
-                        'post_status' => 'publish',
-                    ]);
-                    
-                    // Restore catalog visibility using WooCommerce function
+                    // Restore to publish - use WC methods to trigger hooks
+                    $product->set_status('publish');
                     $product->set_catalog_visibility('visible');
                     $product->save();
                     
@@ -486,45 +615,44 @@ class WSSC_Sync {
         }
         
         // Process missing products
-        foreach ($missing_skus as $sku) {
-            if (!isset($store_products[$sku])) {
-                continue;
-            }
-            
-            $product_id = $store_products[$sku];
-            
+        // For 'zero' action, use optimized direct SQL
+        if ($action === 'zero') {
+            $wpdb->query('START TRANSACTION');
             try {
-                $product = wc_get_product($product_id);
-                
-                if (!$product) {
+                foreach ($missing_skus as $sku) {
+                    if (!isset($store_products[$sku])) {
+                        continue;
+                    }
+                    $product_id = $store_products[$sku];
+                    $this->update_stock_direct($product_id, 0, true);
+                    $this->stats['missing_set_zero']++;
+                }
+                $wpdb->query('COMMIT');
+            } catch (Exception $e) {
+                $wpdb->query('ROLLBACK');
+                $this->error_messages[] = $e->getMessage();
+            }
+        }
+        
+        // For 'private' action, use WC methods to trigger hooks
+        if ($action === 'private') {
+            foreach ($missing_skus as $sku) {
+                if (!isset($store_products[$sku])) {
                     continue;
                 }
                 
-                if ($action === 'zero') {
-                    // Only apply to products that manage stock
-                    if (!$product->managing_stock()) {
+                $product_id = $store_products[$sku];
+                
+                try {
+                    $product = wc_get_product($product_id);
+                    
+                    if (!$product) {
                         continue;
                     }
                     
-                    // Set stock to 0
-                    $current_stock = $product->get_stock_quantity();
-                    
-                    if ($current_stock !== 0) {
-                        $product->set_stock_quantity(0);
-                        $product->save();
-                        $this->stats['missing_set_zero']++;
-                    }
-                    
-                } elseif ($action === 'private') {
-                    // Set to private if not already
+                    // Set to private if not already - use WC methods to trigger hooks
                     if ($product->get_status() !== 'private') {
-                        // Use WordPress function for status change
-                        wp_update_post([
-                            'ID' => $product_id,
-                            'post_status' => 'private',
-                        ]);
-                        
-                        // Set catalog visibility to hidden using WooCommerce function
+                        $product->set_status('private');
                         $product->set_catalog_visibility('hidden');
                         $product->save();
                         
@@ -532,19 +660,16 @@ class WSSC_Sync {
                         $privatized_by_plugin[$sku] = $product_id;
                         $this->stats['missing_set_private']++;
                     }
+                    
+                } catch (Exception $e) {
+                    $this->error_messages[] = sprintf(
+                        __('Error setting SKU %s to private: %s', 'woo-stock-sync'),
+                        $sku,
+                        $e->getMessage()
+                    );
                 }
-                
-            } catch (Exception $e) {
-                $this->error_messages[] = sprintf(
-                    __('Error handling missing SKU %s: %s', 'woo-stock-sync'),
-                    $sku,
-                    $e->getMessage()
-                );
             }
-        }
-        
-        // Update tracked privatized products
-        if ($action === 'private') {
+            
             update_option('wssc_privatized_products', $privatized_by_plugin);
         }
     }
