@@ -6,7 +6,7 @@ Tested up to: 6.4
 Requires PHP: 7.4
 WC requires at least: 5.0
 WC tested up to: 8.0
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -63,6 +63,11 @@ Yes, the plugin supports both simple products and product variations. Each varia
 You can configure this in Settings. Options include: ignore (keep current stock), set stock to 0, or make the product private (and restore when it returns).
 
 == Changelog ==
+
+= 1.0.1 =
+* Fixed missing SKU action feature
+* Added catalog visibility control when setting products to private
+* Improved product restoration when SKU returns in CSV
 
 = 1.0.0 =
 * Initial release
