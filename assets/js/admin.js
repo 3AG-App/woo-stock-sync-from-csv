@@ -281,6 +281,12 @@
                 if (log.stats.not_found !== undefined) {
                     html += '<div class="wssc-log-stat-item"><strong>' + log.stats.not_found + '</strong><span>Not Found</span></div>';
                 }
+                if (log.stats.missing_set_private !== undefined && log.stats.missing_set_private > 0) {
+                    html += '<div class="wssc-log-stat-item"><strong>' + log.stats.missing_set_private + '</strong><span>Set Private</span></div>';
+                }
+                if (log.stats.missing_restored !== undefined && log.stats.missing_restored > 0) {
+                    html += '<div class="wssc-log-stat-item"><strong>' + log.stats.missing_restored + '</strong><span>Restored</span></div>';
+                }
                 if (log.stats.errors !== undefined) {
                     html += '<div class="wssc-log-stat-item"><strong>' + log.stats.errors + '</strong><span>Errors</span></div>';
                 }

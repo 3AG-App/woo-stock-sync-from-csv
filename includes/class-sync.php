@@ -329,6 +329,13 @@ class WSSC_Sync {
         // Build product lookup with current stock values
         $products = $this->get_products_by_skus_with_stock($skus);
         
+        // Check if we should restore private products to public
+        $missing_sku_action = get_option('wssc_missing_sku_action', 'ignore');
+        $should_restore_private = ($missing_sku_action === 'set_private');
+        
+        // Track products that need to be made public (outside transaction for WC hooks)
+        $products_to_publish = [];
+        
         // Start transaction for faster writes
         $wpdb->query('START TRANSACTION');
         
@@ -345,6 +352,12 @@ class WSSC_Sync {
                 $product_id = $product_data['id'];
                 $current_stock = $product_data['stock'];
                 $manages_stock = $product_data['manages_stock'];
+                $post_status = $product_data['post_status'];
+                
+                // Check if product is private and should be restored to public
+                if ($should_restore_private && $post_status === 'private') {
+                    $products_to_publish[] = $product_id;
+                }
                 
                 // Skip if stock is already the same
                 if ($current_stock !== null && (int) $current_stock === $quantity) {
@@ -363,6 +376,11 @@ class WSSC_Sync {
             $wpdb->query('ROLLBACK');
             $this->stats['errors']++;
             $this->error_messages[] = $e->getMessage();
+        }
+        
+        // Restore private products to public (outside transaction to trigger WC hooks)
+        if (!empty($products_to_publish)) {
+            $this->restore_products_to_public($products_to_publish);
         }
         
         // Clear caches once per batch (not per product)
@@ -463,13 +481,14 @@ class WSSC_Sync {
         $placeholders = array_fill(0, count($skus), '%s');
         $placeholders_str = implode(',', $placeholders);
         
-        // Get SKU, ID, stock, and manage_stock in one query
+        // Get SKU, ID, stock, manage_stock, and post_status in one query
         $query = $wpdb->prepare(
             "SELECT 
                 sku.meta_value as sku, 
                 sku.post_id as id,
                 stock.meta_value as stock,
-                manage.meta_value as manages_stock
+                manage.meta_value as manages_stock,
+                p.post_status
              FROM {$wpdb->postmeta} sku
              INNER JOIN {$wpdb->posts} p ON sku.post_id = p.ID
              LEFT JOIN {$wpdb->postmeta} stock ON sku.post_id = stock.post_id AND stock.meta_key = '_stock'
@@ -488,6 +507,7 @@ class WSSC_Sync {
                 'id' => intval($row->id),
                 'stock' => $row->stock !== null ? intval($row->stock) : null,
                 'manages_stock' => $row->manages_stock === 'yes',
+                'post_status' => $row->post_status,
             ];
         }
         
@@ -511,6 +531,33 @@ class WSSC_Sync {
         
         // Clear transients once
         wc_delete_product_transients();
+    }
+    
+    /**
+     * Restore private products to public status (used when SKU returns to CSV)
+     */
+    private function restore_products_to_public($product_ids) {
+        if (empty($product_ids)) {
+            return;
+        }
+        
+        foreach ($product_ids as $product_id) {
+            $product = wc_get_product($product_id);
+            if (!$product) {
+                continue;
+            }
+            
+            // Only restore if currently private
+            if ($product->get_status() !== 'private') {
+                continue;
+            }
+            
+            // Use $product->save() to trigger WC hooks (status change is important)
+            $product->set_status('publish');
+            $product->save();
+            
+            $this->stats['missing_restored']++;
+        }
     }
     
     /**
