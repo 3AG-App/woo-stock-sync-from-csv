@@ -6,7 +6,7 @@ Tested up to: 6.4
 Requires PHP: 7.4
 WC requires at least: 5.0
 WC tested up to: 8.0
-Stable tag: 1.2.6
+Stable tag: 1.2.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,10 @@ You can configure this in Settings. Options include: ignore (keep current stock)
 * Added manual "Check for Updates" button in License page
 * Added one-click "Update" button when new version available
 * Improved update UI with version info display
+
+= 1.2.7 =
+* Fixed: Scheduled sync now resumes immediately after plugin reactivation
+* Fixed: "Next run" no longer empty after deactivate/reactivate cycle
 
 = 1.2.6 =
 * Fixed: Uninstall.php now correctly cleans up all plugin options and cron hooks

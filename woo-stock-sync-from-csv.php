@@ -3,7 +3,7 @@
  * Plugin Name: Woo Stock Sync from CSV
  * Plugin URI: https://3ag.app/products/woo-stock-sync-from-csv
  * Description: Automatically sync WooCommerce product stock from a CSV URL on a scheduled basis.
- * Version: 1.2.6
+ * Version: 1.2.7
  * Author: 3AG
  * Author URI: https://3ag.app
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WSSC_VERSION', '1.2.6');
+define('WSSC_VERSION', '1.2.7');
 define('WSSC_PLUGIN_FILE', __FILE__);
 define('WSSC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WSSC_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -175,6 +175,13 @@ final class Woo_Stock_Sync_From_CSV {
         // Schedule watchdog
         if (!wp_next_scheduled('wssc_watchdog_check')) {
             wp_schedule_event(time(), 'wssc_four_hours', 'wssc_watchdog_check');
+        }
+        
+        // Reschedule sync event if sync was previously enabled
+        // This ensures sync resumes immediately after reactivation
+        if (get_option('wssc_enabled', false) && !wp_next_scheduled('wssc_sync_event')) {
+            $interval = get_option('wssc_schedule_interval', 'hourly');
+            wp_schedule_event(time(), $interval, 'wssc_sync_event');
         }
         
         flush_rewrite_rules();
