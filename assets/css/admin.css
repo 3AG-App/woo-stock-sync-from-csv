@@ -1388,6 +1388,10 @@
     }
 }
 
+.wssc-spin {
+    animation: wssc-spin 0.8s linear infinite;
+}
+
 .wssc-btn .wssc-spinner {
     margin-right: 6px;
 }

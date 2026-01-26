@@ -191,6 +191,12 @@
             const $btn = $(e.currentTarget);
             const logId = $btn.data('log-id');
 
+            // Store original icon and show spinner
+            const $icon = $btn.find('.dashicons');
+            const originalClass = $icon.attr('class');
+            $icon.removeClass('dashicons-visibility').addClass('dashicons-update wssc-spin');
+            $btn.css('pointer-events', 'none');
+
             this.ajax('wssc_get_log_details', { log_id: logId })
                 .done(function (response) {
                     if (response.success) {
@@ -201,6 +207,11 @@
                 })
                 .fail(function () {
                     WSSC.toast('Failed to load log details', 'error');
+                })
+                .always(function () {
+                    // Restore original icon
+                    $icon.attr('class', originalClass);
+                    $btn.css('pointer-events', '');
                 });
         },
 
