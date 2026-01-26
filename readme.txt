@@ -6,7 +6,7 @@ Tested up to: 6.4
 Requires PHP: 7.4
 WC requires at least: 5.0
 WC tested up to: 8.0
-Stable tag: 1.2.8
+Stable tag: 1.2.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,16 @@ You can configure this in Settings. Options include: ignore (keep current stock)
 * Added manual "Check for Updates" button in License page
 * Added one-click "Update" button when new version available
 * Improved update UI with version info display
+
+= 1.2.9 =
+* Refactored: DRY - Cron intervals now defined once and shared across plugin
+* Refactored: DRY - Stats array defined once via get_default_stats() method
+* Fixed: Deprecated current_time('timestamp') replaced with time()
+* Fixed: Missing wssc_watchdog_last_check option in uninstall cleanup
+* Fixed: sanitize_sql_orderby() now handles false return value safely
+* Fixed: Watchdog docblock now correctly says 'hourly' not '4 hours'
+* Removed: Unused get_products_by_skus() dead code
+* Code quality improvements from senior engineer review
 
 = 1.2.8 =
 * Fixed: Cron intervals now registered during activation (prevents scheduling failure)

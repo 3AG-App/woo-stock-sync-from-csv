@@ -112,7 +112,7 @@ class WSSC_License {
             update_option('wssc_license_key', $license_key);
             update_option('wssc_license_status', 'active');
             update_option('wssc_license_data', $result['data']);
-            update_option('wssc_license_last_check', current_time('timestamp'));
+            update_option('wssc_license_last_check', time());
         }
         
         return $result;

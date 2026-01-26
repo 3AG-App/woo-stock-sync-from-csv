@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) {
 class WSSC_Scheduler {
     
     /**
-     * Available schedule intervals
+     * Available schedule intervals (includes custom + WordPress built-ins)
      */
     private $intervals = [];
     
@@ -26,61 +26,50 @@ class WSSC_Scheduler {
         // Watchdog check
         add_action('wssc_watchdog_check', [$this, 'watchdog_check']);
         
-        // Initialize intervals
-        $this->intervals = [
-            'wssc_5min' => [
-                'interval' => 5 * MINUTE_IN_SECONDS,
-                'display' => __('Every 5 Minutes', 'woo-stock-sync'),
-            ],
-            'wssc_15min' => [
-                'interval' => 15 * MINUTE_IN_SECONDS,
-                'display' => __('Every 15 Minutes', 'woo-stock-sync'),
-            ],
-            'wssc_30min' => [
-                'interval' => 30 * MINUTE_IN_SECONDS,
-                'display' => __('Every 30 Minutes', 'woo-stock-sync'),
-            ],
+        // Initialize intervals - combine custom intervals with WordPress built-ins
+        // Use the shared definition from main plugin class for DRY
+        $custom_intervals = Woo_Stock_Sync_From_CSV::get_custom_cron_intervals();
+        
+        // Add WordPress built-in intervals that we want to expose in the UI
+        $builtin_intervals = [
             'hourly' => [
                 'interval' => HOUR_IN_SECONDS,
                 'display' => __('Hourly', 'woo-stock-sync'),
             ],
-            'wssc_2hours' => [
-                'interval' => 2 * HOUR_IN_SECONDS,
-                'display' => __('Every 2 Hours', 'woo-stock-sync'),
-            ],
-            'wssc_4hours' => [
-                'interval' => 4 * HOUR_IN_SECONDS,
-                'display' => __('Every 4 Hours', 'woo-stock-sync'),
-            ],
-            'wssc_6hours' => [
-                'interval' => 6 * HOUR_IN_SECONDS,
-                'display' => __('Every 6 Hours', 'woo-stock-sync'),
-            ],
-            'wssc_12hours' => [
-                'interval' => 12 * HOUR_IN_SECONDS,
-                'display' => __('Every 12 Hours', 'woo-stock-sync'),
-            ],
             'daily' => [
                 'interval' => DAY_IN_SECONDS,
                 'display' => __('Daily', 'woo-stock-sync'),
-            ],
-            'wssc_2days' => [
-                'interval' => 2 * DAY_IN_SECONDS,
-                'display' => __('Every 2 Days', 'woo-stock-sync'),
             ],
             'weekly' => [
                 'interval' => WEEK_IN_SECONDS,
                 'display' => __('Weekly', 'woo-stock-sync'),
             ],
         ];
+        
+        // Merge: custom first, then built-ins (order matters for UI)
+        $this->intervals = array_merge(
+            ['wssc_5min' => $custom_intervals['wssc_5min']],
+            ['wssc_15min' => $custom_intervals['wssc_15min']],
+            ['wssc_30min' => $custom_intervals['wssc_30min']],
+            ['hourly' => $builtin_intervals['hourly']],
+            ['wssc_2hours' => $custom_intervals['wssc_2hours']],
+            ['wssc_4hours' => $custom_intervals['wssc_4hours']],
+            ['wssc_6hours' => $custom_intervals['wssc_6hours']],
+            ['wssc_12hours' => $custom_intervals['wssc_12hours']],
+            ['daily' => $builtin_intervals['daily']],
+            ['wssc_2days' => $custom_intervals['wssc_2days']],
+            ['weekly' => $builtin_intervals['weekly']]
+        );
     }
     
     /**
-     * Add custom cron intervals
+     * Add custom cron intervals to WordPress
      */
     public function add_cron_intervals($schedules) {
-        // Custom intervals for sync
-        foreach ($this->intervals as $key => $data) {
+        // Get custom intervals from shared definition
+        $custom_intervals = Woo_Stock_Sync_From_CSV::get_custom_cron_intervals();
+        
+        foreach ($custom_intervals as $key => $data) {
             if (!isset($schedules[$key])) {
                 $schedules[$key] = $data;
             }
@@ -223,7 +212,7 @@ class WSSC_Scheduler {
     /**
      * Watchdog check
      * 
-     * This runs every 4 hours to ensure the sync cron is properly scheduled.
+     * This runs every hour to ensure the sync cron is properly scheduled.
      * If sync is enabled but no cron is scheduled, it will reschedule it.
      */
     public function watchdog_check() {

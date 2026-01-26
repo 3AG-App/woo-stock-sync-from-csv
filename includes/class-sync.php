@@ -18,21 +18,9 @@ class WSSC_Sync {
     const BATCH_SIZE = 100;
     
     /**
-     * Current sync stats
+     * Current sync stats (initialized via get_default_stats())
      */
-    private $stats = [
-        'total_rows' => 0,
-        'processed' => 0,
-        'updated' => 0,
-        'skipped' => 0,
-        'errors' => 0,
-        'not_found' => 0,
-        'missing_set_zero' => 0,
-        'missing_set_private' => 0,
-        'missing_restored' => 0,
-        'start_time' => 0,
-        'end_time' => 0,
-    ];
+    private $stats = [];
     
     /**
      * Error messages
@@ -43,6 +31,7 @@ class WSSC_Sync {
      * Constructor
      */
     public function __construct() {
+        $this->stats = $this->get_default_stats();
         add_action('wssc_sync_event', [$this, 'run_scheduled_sync']);
     }
     
@@ -73,11 +62,10 @@ class WSSC_Sync {
     }
     
     /**
-     * Main sync process
+     * Get default stats array
      */
-    public function run($trigger = 'manual') {
-        // Reset stats for this run
-        $this->stats = [
+    private function get_default_stats() {
+        return [
             'total_rows' => 0,
             'processed' => 0,
             'updated' => 0,
@@ -90,6 +78,14 @@ class WSSC_Sync {
             'start_time' => 0,
             'end_time' => 0,
         ];
+    }
+    
+    /**
+     * Main sync process
+     */
+    public function run($trigger = 'manual') {
+        // Reset stats for this run
+        $this->stats = $this->get_default_stats();
         $this->error_messages = [];
         
         // Check license
@@ -572,65 +568,6 @@ class WSSC_Sync {
             
             $this->stats['missing_restored']++;
         }
-    }
-    
-    /**
-     * Get product IDs by SKUs efficiently
-     */
-    private function get_products_by_skus($skus) {
-        global $wpdb;
-        
-        $products = [];
-        
-        if (empty($skus)) {
-            return $products;
-        }
-        
-        $placeholders = array_fill(0, count($skus), '%s');
-        $placeholders_str = implode(',', $placeholders);
-        
-        // Check in postmeta (standard WooCommerce)
-        $query = $wpdb->prepare(
-            "SELECT pm.meta_value as sku, pm.post_id 
-             FROM {$wpdb->postmeta} pm
-             INNER JOIN {$wpdb->posts} p ON pm.post_id = p.ID
-             WHERE pm.meta_key = '_sku' 
-             AND pm.meta_value IN ($placeholders_str)
-             AND p.post_type IN ('product', 'product_variation')
-             AND p.post_status IN ('publish', 'private')",
-            $skus
-        );
-        
-        $results = $wpdb->get_results($query);
-        
-        foreach ($results as $row) {
-            $products[$row->sku] = intval($row->post_id);
-        }
-        
-        // Also check HPOS if available
-        if (class_exists('Automattic\WooCommerce\Utilities\OrderUtil')) {
-            // HPOS compatible lookup for product variations
-            $wc_product_meta_lookup = $wpdb->prefix . 'wc_product_meta_lookup';
-            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-            if ($wpdb->get_var($wpdb->prepare("SHOW TABLES LIKE %s", $wc_product_meta_lookup)) === $wc_product_meta_lookup) {
-                $query = $wpdb->prepare(
-                    "SELECT sku, product_id 
-                     FROM {$wc_product_meta_lookup} 
-                     WHERE sku IN ($placeholders_str)",
-                    $skus
-                );
-                
-                $results = $wpdb->get_results($query);
-                
-                foreach ($results as $row) {
-                    if (!isset($products[$row->sku])) {
-                        $products[$row->sku] = intval($row->product_id);
-                    }
-                }
-            }
-        }
-        
-        return $products;
     }
     
     /**

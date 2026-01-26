@@ -3,7 +3,7 @@
  * Plugin Name: Woo Stock Sync from CSV
  * Plugin URI: https://3ag.app/products/woo-stock-sync-from-csv
  * Description: Automatically sync WooCommerce product stock from a CSV URL on a scheduled basis.
- * Version: 1.2.8
+ * Version: 1.2.9
  * Author: 3AG
  * Author URI: https://3ag.app
  * License: GPL v2 or later
@@ -22,7 +22,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('WSSC_VERSION', '1.2.8');
+define('WSSC_VERSION', '1.2.9');
 define('WSSC_PLUGIN_FILE', __FILE__);
 define('WSSC_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('WSSC_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -196,27 +196,69 @@ final class Woo_Stock_Sync_From_CSV {
      * Called during activation to ensure intervals exist before scheduling
      */
     private function register_cron_intervals() {
-        add_filter('cron_schedules', function($schedules) {
-            // Custom intervals for sync
-            $intervals = [
-                'wssc_5min' => ['interval' => 5 * MINUTE_IN_SECONDS, 'display' => 'Every 5 Minutes'],
-                'wssc_15min' => ['interval' => 15 * MINUTE_IN_SECONDS, 'display' => 'Every 15 Minutes'],
-                'wssc_30min' => ['interval' => 30 * MINUTE_IN_SECONDS, 'display' => 'Every 30 Minutes'],
-                'wssc_2hours' => ['interval' => 2 * HOUR_IN_SECONDS, 'display' => 'Every 2 Hours'],
-                'wssc_4hours' => ['interval' => 4 * HOUR_IN_SECONDS, 'display' => 'Every 4 Hours'],
-                'wssc_6hours' => ['interval' => 6 * HOUR_IN_SECONDS, 'display' => 'Every 6 Hours'],
-                'wssc_12hours' => ['interval' => 12 * HOUR_IN_SECONDS, 'display' => 'Every 12 Hours'],
-                'wssc_2days' => ['interval' => 2 * DAY_IN_SECONDS, 'display' => 'Every 2 Days'],
-            ];
-            
-            foreach ($intervals as $key => $data) {
-                if (!isset($schedules[$key])) {
-                    $schedules[$key] = $data;
-                }
+        add_filter('cron_schedules', [$this, 'add_cron_intervals_callback']);
+    }
+    
+    /**
+     * Cron intervals callback - shared definition for DRY principle
+     * This is also used by WSSC_Scheduler::add_cron_intervals()
+     *
+     * @param array $schedules Existing schedules
+     * @return array Modified schedules
+     */
+    public function add_cron_intervals_callback($schedules) {
+        $intervals = self::get_custom_cron_intervals();
+        
+        foreach ($intervals as $key => $data) {
+            if (!isset($schedules[$key])) {
+                $schedules[$key] = $data;
             }
-            
-            return $schedules;
-        });
+        }
+        
+        return $schedules;
+    }
+    
+    /**
+     * Get custom cron intervals definition
+     * Single source of truth for all custom intervals
+     *
+     * @return array Custom intervals
+     */
+    public static function get_custom_cron_intervals() {
+        return [
+            'wssc_5min' => [
+                'interval' => 5 * MINUTE_IN_SECONDS,
+                'display' => __('Every 5 Minutes', 'woo-stock-sync'),
+            ],
+            'wssc_15min' => [
+                'interval' => 15 * MINUTE_IN_SECONDS,
+                'display' => __('Every 15 Minutes', 'woo-stock-sync'),
+            ],
+            'wssc_30min' => [
+                'interval' => 30 * MINUTE_IN_SECONDS,
+                'display' => __('Every 30 Minutes', 'woo-stock-sync'),
+            ],
+            'wssc_2hours' => [
+                'interval' => 2 * HOUR_IN_SECONDS,
+                'display' => __('Every 2 Hours', 'woo-stock-sync'),
+            ],
+            'wssc_4hours' => [
+                'interval' => 4 * HOUR_IN_SECONDS,
+                'display' => __('Every 4 Hours', 'woo-stock-sync'),
+            ],
+            'wssc_6hours' => [
+                'interval' => 6 * HOUR_IN_SECONDS,
+                'display' => __('Every 6 Hours', 'woo-stock-sync'),
+            ],
+            'wssc_12hours' => [
+                'interval' => 12 * HOUR_IN_SECONDS,
+                'display' => __('Every 12 Hours', 'woo-stock-sync'),
+            ],
+            'wssc_2days' => [
+                'interval' => 2 * DAY_IN_SECONDS,
+                'display' => __('Every 2 Days', 'woo-stock-sync'),
+            ],
+        ];
     }
     
     /**

@@ -197,6 +197,9 @@ class WSSC_Logs {
         
         $where_clause = implode(' AND ', $where);
         $orderby = sanitize_sql_orderby($args['orderby'] . ' ' . $args['order']);
+        if (!$orderby) {
+            $orderby = 'created_at DESC'; // Safe default
+        }
         
         $sql = "SELECT * FROM {$this->table_name} WHERE {$where_clause} ORDER BY {$orderby} LIMIT %d OFFSET %d";
         $values[] = intval($args['limit']);

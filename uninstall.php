@@ -45,6 +45,7 @@ function wssc_uninstall_cleanup() {
         'wssc_last_sync_stats',
         'wssc_last_scheduled',
         'wssc_privatized_products',
+        'wssc_watchdog_last_check',
         // Database
         'wssc_db_version',
     ];
