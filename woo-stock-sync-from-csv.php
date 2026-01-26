@@ -176,9 +176,9 @@ final class Woo_Stock_Sync_From_CSV {
         // (cron_schedules filter may not have run yet during activation)
         $this->register_cron_intervals();
         
-        // Schedule watchdog
+        // Schedule watchdog (uses built-in 'hourly' for reliability)
         if (!wp_next_scheduled('wssc_watchdog_check')) {
-            wp_schedule_event(time(), 'wssc_four_hours', 'wssc_watchdog_check');
+            wp_schedule_event(time(), 'hourly', 'wssc_watchdog_check');
         }
         
         // Reschedule sync event if sync was previously enabled
@@ -207,7 +207,6 @@ final class Woo_Stock_Sync_From_CSV {
                 'wssc_6hours' => ['interval' => 6 * HOUR_IN_SECONDS, 'display' => 'Every 6 Hours'],
                 'wssc_12hours' => ['interval' => 12 * HOUR_IN_SECONDS, 'display' => 'Every 12 Hours'],
                 'wssc_2days' => ['interval' => 2 * DAY_IN_SECONDS, 'display' => 'Every 2 Days'],
-                'wssc_four_hours' => ['interval' => 4 * HOUR_IN_SECONDS, 'display' => 'Every 4 Hours (Watchdog)'],
             ];
             
             foreach ($intervals as $key => $data) {

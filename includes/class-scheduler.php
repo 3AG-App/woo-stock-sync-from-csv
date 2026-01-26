@@ -86,13 +86,7 @@ class WSSC_Scheduler {
             }
         }
         
-        // Watchdog interval (4 hours)
-        if (!isset($schedules['wssc_four_hours'])) {
-            $schedules['wssc_four_hours'] = [
-                'interval' => 4 * HOUR_IN_SECONDS,
-                'display' => __('Every 4 Hours (Watchdog)', 'woo-stock-sync'),
-            ];
-        }
+        // Watchdog uses built-in 'hourly' schedule for maximum reliability
         
         return $schedules;
     }
@@ -128,7 +122,7 @@ class WSSC_Scheduler {
                 // Schedule is still valid, don't change it
                 // Just ensure watchdog is scheduled
                 if (!wp_next_scheduled('wssc_watchdog_check')) {
-                    wp_schedule_event(time(), 'wssc_four_hours', 'wssc_watchdog_check');
+                    wp_schedule_event(time(), 'hourly', 'wssc_watchdog_check');
                 }
                 return true;
             }
@@ -138,7 +132,7 @@ class WSSC_Scheduler {
                 // Just update the interval option, don't reschedule
                 update_option('wssc_schedule_interval', $interval);
                 if (!wp_next_scheduled('wssc_watchdog_check')) {
-                    wp_schedule_event(time(), 'wssc_four_hours', 'wssc_watchdog_check');
+                    wp_schedule_event(time(), 'hourly', 'wssc_watchdog_check');
                 }
                 return true;
             }
@@ -152,7 +146,7 @@ class WSSC_Scheduler {
         
         // Schedule watchdog if not exists
         if (!wp_next_scheduled('wssc_watchdog_check')) {
-            wp_schedule_event(time(), 'wssc_four_hours', 'wssc_watchdog_check');
+            wp_schedule_event(time(), 'hourly', 'wssc_watchdog_check');
         }
         
         update_option('wssc_schedule_interval', $interval);
