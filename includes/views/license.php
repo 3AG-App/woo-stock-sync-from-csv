@@ -178,37 +178,44 @@ $package = isset($license_data['package']) ? $license_data['package'] : '';
                             </p>
                         </div>
                     </form>
+                <?php endif; ?>
 
-                    <div class="wssc-license-help">
-                        <p>
-                            <span class="dashicons dashicons-info-outline"></span>
-                            <?php 
+                <div class="wssc-license-help">
+                    <p>
+                        <span class="dashicons dashicons-info-outline"></span>
+                        <?php 
+                        if ($is_active) {
+                            printf(
+                                esc_html__('Need more licenses? %s', 'woo-stock-sync'),
+                                '<a href="https://3ag.app/products/woo-stock-sync-from-csv" target="_blank">' . esc_html__('Purchase one here', 'woo-stock-sync') . '</a>'
+                            );
+                        } else {
                             printf(
                                 esc_html__('Don\'t have a license? %s', 'woo-stock-sync'),
                                 '<a href="https://3ag.app/products/woo-stock-sync-from-csv" target="_blank">' . esc_html__('Purchase one here', 'woo-stock-sync') . '</a>'
-                            ); 
-                            ?>
-                        </p>
-                        <p>
-                            <span class="dashicons dashicons-admin-users"></span>
-                            <?php 
-                            printf(
-                                esc_html__('Manage your licenses and domain activations: %s', 'woo-stock-sync'),
-                                '<a href="https://3ag.app/dashboard/licenses" target="_blank">' . esc_html__('License Dashboard', 'woo-stock-sync') . '</a>'
-                            ); 
-                            ?>
-                        </p>
-                        <p>
-                            <span class="dashicons dashicons-email"></span>
-                            <?php 
-                            printf(
-                                esc_html__('Need help? Contact support: %s', 'woo-stock-sync'),
-                                '<a href="mailto:info@3ag.app">info@3ag.app</a>'
-                            ); 
-                            ?>
-                        </p>
-                    </div>
-                <?php endif; ?>
+                            );
+                        }
+                        ?>
+                    </p>
+                    <p>
+                        <span class="dashicons dashicons-admin-users"></span>
+                        <?php 
+                        printf(
+                            esc_html__('Manage your licenses and domain activations: %s', 'woo-stock-sync'),
+                            '<a href="https://3ag.app/dashboard/licenses" target="_blank">' . esc_html__('License Dashboard', 'woo-stock-sync') . '</a>'
+                        ); 
+                        ?>
+                    </p>
+                    <p>
+                        <span class="dashicons dashicons-email"></span>
+                        <?php 
+                        printf(
+                            esc_html__('Need help? Contact support: %s', 'woo-stock-sync'),
+                            '<a href="mailto:info@3ag.app">info@3ag.app</a>'
+                        ); 
+                        ?>
+                    </p>
+                </div>
             </div>
         </div>
 
