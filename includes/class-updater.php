@@ -14,7 +14,7 @@ class WSSC_Updater {
     /**
      * GitHub repository owner
      */
-    const GITHUB_OWNER = 'SourovCodes';
+    const GITHUB_OWNER = '3AG-App';
     
     /**
      * GitHub repository name
@@ -237,7 +237,7 @@ class WSSC_Updater {
             'name' => 'Woo Stock Sync from CSV',
             'slug' => self::PRODUCT_SLUG,
             'version' => $update_data['version'] ?? WSSC_VERSION,
-            'author' => '<a href="https://github.com/' . self::GITHUB_OWNER . '">SourovCodes</a>',
+            'author' => '<a href="https://github.com/' . self::GITHUB_OWNER . '">3AG-App</a>',
             'author_profile' => 'https://github.com/' . self::GITHUB_OWNER,
             'homepage' => $this->get_github_repo_url(),
             'requires' => '5.8',
