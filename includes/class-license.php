@@ -43,6 +43,10 @@ class WSSC_License {
     
     /**
      * Make API request
+     * 
+     * @param string $endpoint API endpoint
+     * @param array $body Request body
+     * @return array Response with success, message, data, http_code, is_network_error
      */
     private function api_request($endpoint, $body) {
         $response = wp_remote_post(self::API_URL . $endpoint, [
@@ -58,6 +62,8 @@ class WSSC_License {
             return [
                 'success' => false,
                 'message' => $response->get_error_message(),
+                'is_network_error' => true,
+                'http_code' => 0,
             ];
         }
         
@@ -69,6 +75,8 @@ class WSSC_License {
             return [
                 'success' => true,
                 'message' => __('Operation successful.', 'woo-stock-sync'),
+                'http_code' => $code,
+                'is_network_error' => false,
             ];
         }
         
@@ -76,6 +84,8 @@ class WSSC_License {
             return [
                 'success' => true,
                 'data' => isset($data['data']) ? $data['data'] : $data,
+                'http_code' => $code,
+                'is_network_error' => false,
             ];
         }
         
@@ -83,6 +93,8 @@ class WSSC_License {
             'success' => false,
             'message' => isset($data['message']) ? $data['message'] : __('Unknown error occurred.', 'woo-stock-sync'),
             'errors' => isset($data['errors']) ? $data['errors'] : [],
+            'http_code' => $code,
+            'is_network_error' => false,
         ];
     }
     
@@ -100,8 +112,17 @@ class WSSC_License {
     
     /**
      * Activate license for this domain
+     * 
+     * Clears any existing license data before attempting activation
+     * to ensure clean state regardless of outcome.
      */
     public function activate($license_key) {
+        // Clear existing license data first to avoid stale state
+        delete_option('wssc_license_key');
+        delete_option('wssc_license_status');
+        delete_option('wssc_license_data');
+        delete_option('wssc_license_last_check');
+        
         $result = $this->api_request('/licenses/activate', [
             'license_key' => $license_key,
             'product_slug' => self::PRODUCT_SLUG,
@@ -114,6 +135,7 @@ class WSSC_License {
             update_option('wssc_license_data', $result['data']);
             update_option('wssc_license_last_check', time());
         }
+        // On failure, all license data is cleared - user can try again
         
         return $result;
     }
@@ -194,9 +216,16 @@ class WSSC_License {
                 update_option('wssc_license_status', 'inactive');
             }
         } elseif (!$result['success']) {
-            // API error (401 = license deleted, network error, etc.)
-            // Keep license key but mark as inactive
-            update_option('wssc_license_status', 'inactive');
+            // Check if this is a network error or a definitive API error
+            $is_network_error = !empty($result['is_network_error']);
+            $http_code = isset($result['http_code']) ? $result['http_code'] : 0;
+            
+            // Only mark as inactive for definitive API errors (401, 403)
+            // Don't invalidate on network errors (temporary issues)
+            if (!$is_network_error && in_array($http_code, [401, 403], true)) {
+                update_option('wssc_license_status', 'inactive');
+            }
+            // For network errors, keep current status unchanged
         }
         
         return $result;
@@ -211,9 +240,11 @@ class WSSC_License {
             return;
         }
         
-        $result = $this->check($license_key);
+        // check() updates wssc_license_status internally
+        $this->check($license_key);
         
-        if (!$result['success'] || (isset($result['data']['activated']) && !$result['data']['activated'])) {
+        // Now check if license is valid after the API check
+        if (!$this->is_valid()) {
             // License is no longer valid, disable sync
             update_option('wssc_enabled', false);
             

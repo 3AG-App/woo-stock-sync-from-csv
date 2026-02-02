@@ -6,7 +6,7 @@ Tested up to: 6.4
 Requires PHP: 7.4
 WC requires at least: 5.0
 WC tested up to: 8.0
-Stable tag: 1.3.1
+Stable tag: 1.3.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -76,6 +76,13 @@ You can configure this in Settings. Options include: ignore (keep current stock)
 * Added manual "Check for Updates" button in License page
 * Added one-click "Update" button when new version available
 * Improved update UI with version info display
+
+= 1.3.2 =
+* Fixed: Network errors no longer invalidate license (only 401/403 API errors do)
+* Fixed: License activation clears old data first to avoid stale state
+* Fixed: Verify License button now reloads page when license is invalid
+* Added: Admin notice when license is inactive but key exists
+* Improved: Simplified daily license check logic
 
 = 1.3.1 =
 * Fixed: License verification now properly marks license as inactive when API returns 401

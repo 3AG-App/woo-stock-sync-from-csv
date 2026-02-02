@@ -563,17 +563,24 @@
                     if (response.success) {
                         if (response.data.activated) {
                             WSSC.toast('License is valid and active', 'success');
+                            $btn.prop('disabled', false);
                         } else {
-                            WSSC.toast('License is not active for this domain', 'error');
+                            WSSC.toast('License is not active for this domain. Reloading...', 'error');
+                            // Reload page to update UI state
+                            setTimeout(function () {
+                                location.reload();
+                            }, 1500);
                         }
                     } else {
-                        WSSC.toast(response.data.message, 'error');
+                        WSSC.toast(response.data.message + ' Reloading...', 'error');
+                        // Reload page to update UI state since status may have changed
+                        setTimeout(function () {
+                            location.reload();
+                        }, 1500);
                     }
                 })
                 .fail(function () {
                     WSSC.toast('Failed to check license', 'error');
-                })
-                .always(function () {
                     $btn.prop('disabled', false);
                 });
         },

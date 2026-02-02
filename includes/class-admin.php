@@ -23,6 +23,36 @@ class WSSC_Admin {
         add_action('admin_menu', [$this, 'add_menu']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_assets']);
         add_action('admin_init', [$this, 'register_settings']);
+        add_action('admin_notices', [$this, 'license_inactive_notice']);
+    }
+    
+    /**
+     * Show admin notice when license is inactive
+     */
+    public function license_inactive_notice() {
+        // Only show on our plugin pages
+        $screen = get_current_screen();
+        if (!$screen || strpos($screen->id, self::MENU_SLUG) === false) {
+            return;
+        }
+        
+        // Check if license key exists but status is not active
+        $license_key = get_option('wssc_license_key');
+        $license_status = get_option('wssc_license_status');
+        
+        if ($license_key && $license_status !== 'active') {
+            ?>
+            <div class="notice notice-warning">
+                <p>
+                    <strong><?php esc_html_e('Stock Sync License Issue:', 'woo-stock-sync'); ?></strong>
+                    <?php esc_html_e('Your license is inactive. Sync has been disabled.', 'woo-stock-sync'); ?>
+                    <a href="<?php echo esc_url(admin_url('admin.php?page=' . self::MENU_SLUG . '-license')); ?>">
+                        <?php esc_html_e('Verify or update your license', 'woo-stock-sync'); ?>
+                    </a>
+                </p>
+            </div>
+            <?php
+        }
     }
     
     /**
