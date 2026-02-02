@@ -52,6 +52,8 @@ Validates a license key and returns license details.
 ```json
 {
   "data": {
+    "valid": true,
+    "status": "active",
     "expires_at": "2025-12-31T23:59:59+00:00",
     "activations": {
       "limit": 3,
@@ -101,6 +103,8 @@ Activates a license for a specific domain. Call this when the plugin is first in
 ```json
 {
   "data": {
+    "valid": true,
+    "status": "active",
     "expires_at": "2025-12-31T23:59:59+00:00",
     "activations": {
       "limit": 3,
@@ -119,6 +123,8 @@ If the domain is already activated, the endpoint returns the current license sta
 ```json
 {
   "data": {
+    "valid": true,
+    "status": "active",
     "expires_at": "2025-12-31T23:59:59+00:00",
     "activations": {
       "limit": 3,
@@ -210,6 +216,8 @@ Checks if a license is active and properly activated for a specific domain. Use 
   "data": {
     "activated": true,
     "license": {
+      "valid": true,
+      "status": "active",
       "expires_at": "2025-12-31T23:59:59+00:00",
       "activations": {
         "limit": 3,
@@ -308,8 +316,20 @@ For validation errors (422):
 
 | Field | Type | Description |
 |-------|------|-------------|
+| `valid` | boolean | `true` if the license is currently usable, `false` otherwise |
+| `status` | string | License status: `active`, `paused`, `suspended`, `expired`, or `cancelled` |
 | `expires_at` | string\|null | ISO 8601 expiration date, or `null` for lifetime licenses |
 | `activations.limit` | integer | Maximum allowed domain activations |
 | `activations.used` | integer | Current number of active domains |
 | `product` | string | Product name |
 | `package` | string | Package/tier name |
+
+### License Status Values
+
+| Status | Description | `valid` |
+|--------|-------------|------|
+| `active` | License is valid and usable | `true` |
+| `paused` | Subscription paused by user | `false` |
+| `suspended` | Payment issue or manual suspension | `false` |
+| `expired` | License has passed its expiration date | `false` |
+| `cancelled` | Subscription cancelled | `false` |
