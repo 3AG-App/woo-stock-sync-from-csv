@@ -181,17 +181,22 @@ class WSSC_License {
             'domain' => $this->get_domain(),
         ]);
         
+        update_option('wssc_license_last_check', time());
+        
         if ($result['success'] && isset($result['data']['activated'])) {
-            update_option('wssc_license_last_check', time());
-            
             if ($result['data']['activated']) {
                 update_option('wssc_license_status', 'active');
                 if (isset($result['data']['license'])) {
                     update_option('wssc_license_data', $result['data']['license']);
                 }
             } else {
+                // License exists but not activated for this domain
                 update_option('wssc_license_status', 'inactive');
             }
+        } elseif (!$result['success']) {
+            // API error (401 = license deleted, network error, etc.)
+            // Keep license key but mark as inactive
+            update_option('wssc_license_status', 'inactive');
         }
         
         return $result;
