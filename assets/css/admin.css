@@ -1139,6 +1139,10 @@
     border-color: var(--wssc-danger);
 }
 
+.wssc-license-card.wssc-license-warning {
+    border-color: var(--wssc-warning);
+}
+
 .wssc-license-status-display {
     display: flex;
     align-items: center;
@@ -1179,6 +1183,48 @@
 .wssc-license-inactive .wssc-license-icon {
     background: var(--wssc-warning-light);
     color: var(--wssc-warning);
+}
+
+.wssc-license-warning .wssc-license-icon {
+    background: var(--wssc-warning-light);
+    color: var(--wssc-warning);
+}
+
+/* Status Notice (inline notices in license page) */
+.wssc-status-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border-radius: var(--wssc-radius);
+    margin-bottom: 20px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.wssc-status-notice .dashicons {
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.wssc-status-notice.wssc-notice-warning {
+    background: var(--wssc-warning-light);
+    color: var(--wssc-gray-700);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.wssc-status-notice.wssc-notice-warning .dashicons {
+    color: var(--wssc-warning);
+}
+
+.wssc-status-notice.wssc-notice-error {
+    background: var(--wssc-danger-light);
+    color: var(--wssc-gray-700);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.wssc-status-notice.wssc-notice-error .dashicons {
+    color: var(--wssc-danger);
 }
 
 .wssc-license-info h2 {

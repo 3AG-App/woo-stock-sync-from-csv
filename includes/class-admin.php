@@ -27,7 +27,7 @@ class WSSC_Admin {
     }
     
     /**
-     * Show admin notice when license is inactive
+     * Show admin notice when license is not active
      */
     public function license_inactive_notice() {
         // Only show on our plugin pages
@@ -48,20 +48,27 @@ class WSSC_Admin {
             return;
         }
         
-        // Determine message based on status
+        // Determine message and severity based on status
         $notice_class = 'notice-warning';
         switch ($status) {
             case WSSC_License::STATUS_EXPIRED:
                 $message = __('Your license has expired. Renew to continue using sync features.', 'woo-stock-sync');
-                $notice_class = 'notice-warning';
+                break;
+            case WSSC_License::STATUS_CANCELLED:
+                $message = __('Your subscription was cancelled. Purchase a new license to restore sync.', 'woo-stock-sync');
+                break;
+            case WSSC_License::STATUS_PAUSED:
+                $message = __('Your subscription is paused. Resume it in your account to restore sync.', 'woo-stock-sync');
+                break;
+            case WSSC_License::STATUS_SUSPENDED:
+                $message = __('Your license is suspended. Please update your payment method.', 'woo-stock-sync');
+                break;
+            case WSSC_License::STATUS_DOMAIN_LIMIT:
+                $message = __('Domain activation limit reached. Deactivate another site or upgrade your license.', 'woo-stock-sync');
                 break;
             case WSSC_License::STATUS_INVALID:
-                $message = __('Your license key is invalid. Please enter a valid license.', 'woo-stock-sync');
+                $message = __('Your license key is invalid. Please check your key.', 'woo-stock-sync');
                 $notice_class = 'notice-error';
-                break;
-            case WSSC_License::STATUS_INACTIVE:
-                $message = __('Your license is inactive. Sync has been disabled.', 'woo-stock-sync');
-                $notice_class = 'notice-warning';
                 break;
             default:
                 $message = __('License issue detected. Sync is disabled.', 'woo-stock-sync');

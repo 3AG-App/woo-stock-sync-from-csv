@@ -5,12 +5,18 @@
  * Handles license validation, activation, deactivation, and status checks
  * using the 3AG License API.
  * 
- * License Status Values:
+ * Client Status Values (stored locally):
  * - 'active'   : License is valid and activated for this domain
- * - 'expired'  : License has expired (was valid before)
- * - 'invalid'  : License key doesn't exist or wrong product (401)
- * - 'inactive' : License is suspended/cancelled or domain not activated (403)
+ * - 'expired'  : License has expired
+ * - 'paused'   : User paused subscription
+ * - 'suspended': Payment issue or manual suspension
+ * - 'cancelled': Subscription cancelled
+ * - 'invalid'  : License key doesn't exist (401 from API)
+ * - 'domain_limit': Activation limit reached (403 with domain limit message)
  * - ''         : No license entered yet
+ * 
+ * API Status Values (from server):
+ * - 'active', 'paused', 'suspended', 'expired', 'cancelled'
  * 
  * Grace Period:
  * - 7 days for network errors to prevent temporary outages from breaking sites
@@ -38,12 +44,19 @@ class WSSC_License {
     const GRACE_PERIOD_DAYS = 7;
     
     /**
-     * Valid license statuses
+     * License statuses - matches API status values
      */
     const STATUS_ACTIVE = 'active';
     const STATUS_EXPIRED = 'expired';
-    const STATUS_INVALID = 'invalid';
-    const STATUS_INACTIVE = 'inactive';
+    const STATUS_PAUSED = 'paused';
+    const STATUS_SUSPENDED = 'suspended';
+    const STATUS_CANCELLED = 'cancelled';
+    
+    /**
+     * Client-only statuses (not from API)
+     */
+    const STATUS_INVALID = 'invalid';        // 401 - key doesn't exist
+    const STATUS_DOMAIN_LIMIT = 'domain_limit'; // 403 - activation limit reached
     
     /**
      * Constructor
@@ -146,8 +159,11 @@ class WSSC_License {
         
         if ($result['success']) {
             // Success - store all license data
+            // API returns status in data (active, expired, etc.)
+            $api_status = isset($result['data']['status']) ? $result['data']['status'] : self::STATUS_ACTIVE;
+            
             update_option('wssc_license_key', $license_key);
-            update_option('wssc_license_status', self::STATUS_ACTIVE);
+            update_option('wssc_license_status', $api_status);
             update_option('wssc_license_data', $result['data']);
             update_option('wssc_license_last_check', time());
             delete_option('wssc_license_grace_start'); // Clear any grace period
@@ -158,26 +174,54 @@ class WSSC_License {
         // Handle specific error codes
         $http_code = isset($result['http_code']) ? $result['http_code'] : 0;
         
+        // Always store the key for reference
+        update_option('wssc_license_key', $license_key);
+        delete_option('wssc_license_data');
+        
         if ($http_code === 401) {
-            // Invalid license key
-            update_option('wssc_license_key', $license_key); // Keep key for reference
+            // Invalid license key - doesn't exist
             update_option('wssc_license_status', self::STATUS_INVALID);
-            delete_option('wssc_license_data');
         } elseif ($http_code === 403) {
-            // License suspended, cancelled, expired, or domain limit reached
-            update_option('wssc_license_key', $license_key);
+            // 403 can be: not active, domain limit, or other restrictions
+            $message = isset($result['message']) ? strtolower($result['message']) : '';
             
-            // Check if it's an expiry issue based on message
-            if (strpos(strtolower($result['message']), 'expired') !== false) {
-                update_option('wssc_license_status', self::STATUS_EXPIRED);
+            if (strpos($message, 'domain limit') !== false) {
+                update_option('wssc_license_status', self::STATUS_DOMAIN_LIMIT);
             } else {
-                update_option('wssc_license_status', self::STATUS_INACTIVE);
+                // License exists but not active - validate to get actual status
+                $validate_result = $this->validate($license_key);
+                if ($validate_result['success'] && isset($validate_result['data']['status'])) {
+                    // Use the actual status from API (expired, suspended, paused, cancelled)
+                    update_option('wssc_license_status', $validate_result['data']['status']);
+                    update_option('wssc_license_data', $validate_result['data']);
+                } else {
+                    // Fallback: parse message for common patterns
+                    update_option('wssc_license_status', $this->parse_status_from_message($message));
+                }
             }
-            delete_option('wssc_license_data');
         }
-        // For network errors during activation, don't save anything - let user retry
+        // For network errors during activation, don't save status - let user retry
         
         return $result;
+    }
+    
+    /**
+     * Parse status from error message (fallback)
+     * 
+     * @param string $message Lowercase error message
+     * @return string Status constant
+     */
+    private function parse_status_from_message($message) {
+        if (strpos($message, 'expired') !== false) {
+            return self::STATUS_EXPIRED;
+        } elseif (strpos($message, 'suspended') !== false) {
+            return self::STATUS_SUSPENDED;
+        } elseif (strpos($message, 'cancelled') !== false || strpos($message, 'canceled') !== false) {
+            return self::STATUS_CANCELLED;
+        } elseif (strpos($message, 'paused') !== false) {
+            return self::STATUS_PAUSED;
+        }
+        return self::STATUS_SUSPENDED; // Default for unknown 403
     }
     
     /**
@@ -250,32 +294,45 @@ class WSSC_License {
             delete_option('wssc_license_grace_start'); // Clear grace period
             
             if ($result['data']['activated']) {
-                // License is valid and activated
-                update_option('wssc_license_status', self::STATUS_ACTIVE);
-                if (isset($result['data']['license'])) {
-                    update_option('wssc_license_data', $result['data']['license']);
-                    
-                    // Check if expired based on license data
-                    $expires_at = isset($result['data']['license']['expires_at']) 
-                        ? $result['data']['license']['expires_at'] 
-                        : null;
-                    
-                    if ($expires_at && strtotime($expires_at) < time()) {
-                        update_option('wssc_license_status', self::STATUS_EXPIRED);
-                    }
-                }
+                // License is valid and activated - use status from API
+                $license_data = isset($result['data']['license']) ? $result['data']['license'] : [];
+                $api_status = isset($license_data['status']) ? $license_data['status'] : self::STATUS_ACTIVE;
+                
+                update_option('wssc_license_status', $api_status);
+                update_option('wssc_license_data', $license_data);
             } else {
-                // License exists but not activated for this domain
-                // Try to auto-activate if we were previously invalid/inactive
+                // activated=false means either:
+                // 1. Domain not activated for this license, OR
+                // 2. License is not active (paused/suspended/expired/cancelled)
+                // Try to auto-activate to determine which
                 $current_status = get_option('wssc_license_status');
-                if (in_array($current_status, [self::STATUS_INVALID, self::STATUS_INACTIVE, self::STATUS_EXPIRED], true)) {
+                $non_active_statuses = [
+                    self::STATUS_INVALID, 
+                    self::STATUS_EXPIRED, 
+                    self::STATUS_PAUSED,
+                    self::STATUS_SUSPENDED,
+                    self::STATUS_CANCELLED,
+                    self::STATUS_DOMAIN_LIMIT,
+                ];
+                
+                if (in_array($current_status, $non_active_statuses, true) || $current_status === '') {
                     // Attempt re-activation
                     $activate_result = $this->activate($license_key);
                     if ($activate_result['success']) {
                         return $activate_result;
                     }
+                    // activate() already set the correct status
+                    return $activate_result;
                 }
-                update_option('wssc_license_status', self::STATUS_INACTIVE);
+                
+                // Was active before, now not - validate to get real status
+                $validate_result = $this->validate($license_key);
+                if ($validate_result['success'] && isset($validate_result['data']['status'])) {
+                    update_option('wssc_license_status', $validate_result['data']['status']);
+                    update_option('wssc_license_data', $validate_result['data']);
+                } else {
+                    update_option('wssc_license_status', self::STATUS_SUSPENDED);
+                }
             }
             
             return $result;
@@ -294,14 +351,8 @@ class WSSC_License {
         if ($http_code === 401) {
             // License key doesn't exist
             update_option('wssc_license_status', self::STATUS_INVALID);
-        } elseif ($http_code === 403) {
-            // License suspended, cancelled, or expired
-            if (strpos(strtolower($result['message']), 'expired') !== false) {
-                update_option('wssc_license_status', self::STATUS_EXPIRED);
-            } else {
-                update_option('wssc_license_status', self::STATUS_INACTIVE);
-            }
         }
+        // Note: /check endpoint doesn't return 403, only 401 or 200
         
         return $result;
     }
@@ -330,8 +381,8 @@ class WSSC_License {
             $grace_end = $grace_start + (self::GRACE_PERIOD_DAYS * DAY_IN_SECONDS);
             
             if (time() > $grace_end) {
-                // Grace period expired - mark as inactive
-                update_option('wssc_license_status', self::STATUS_INACTIVE);
+                // Grace period expired - mark as suspended (network issue)
+                update_option('wssc_license_status', self::STATUS_SUSPENDED);
                 delete_option('wssc_license_grace_start');
                 $result['message'] = __('License verification failed. Grace period expired.', 'woo-stock-sync');
             } else {
@@ -409,11 +460,45 @@ class WSSC_License {
         $labels = [
             self::STATUS_ACTIVE => __('Active', 'woo-stock-sync'),
             self::STATUS_EXPIRED => __('Expired', 'woo-stock-sync'),
-            self::STATUS_INVALID => __('Invalid', 'woo-stock-sync'),
-            self::STATUS_INACTIVE => __('Inactive', 'woo-stock-sync'),
+            self::STATUS_PAUSED => __('Paused', 'woo-stock-sync'),
+            self::STATUS_SUSPENDED => __('Suspended', 'woo-stock-sync'),
+            self::STATUS_CANCELLED => __('Cancelled', 'woo-stock-sync'),
+            self::STATUS_INVALID => __('Invalid Key', 'woo-stock-sync'),
+            self::STATUS_DOMAIN_LIMIT => __('Domain Limit Reached', 'woo-stock-sync'),
         ];
         
         return isset($labels[$status]) ? $labels[$status] : __('Not Activated', 'woo-stock-sync');
+    }
+    
+    /**
+     * Check if status allows the license to be re-activated
+     * 
+     * @return bool True if license can potentially be reactivated
+     */
+    public function can_reactivate() {
+        $status = $this->get_status();
+        
+        // These statuses might become active again
+        return in_array($status, [
+            self::STATUS_PAUSED,      // User can unpause
+            self::STATUS_SUSPENDED,   // Payment can be fixed
+            self::STATUS_DOMAIN_LIMIT, // User can deactivate other domains
+            self::STATUS_INVALID,     // Key might be corrected on server
+        ], true);
+    }
+    
+    /**
+     * Check if license needs renewal (expired or cancelled)
+     * 
+     * @return bool True if license needs renewal/repurchase
+     */
+    public function needs_renewal() {
+        $status = $this->get_status();
+        
+        return in_array($status, [
+            self::STATUS_EXPIRED,
+            self::STATUS_CANCELLED,
+        ], true);
     }
     
     /**

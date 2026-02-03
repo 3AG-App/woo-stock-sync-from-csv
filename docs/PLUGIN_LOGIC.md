@@ -1,7 +1,7 @@
 # WooCommerce Stock Sync from CSV - Plugin Logic Documentation
 
-**Version:** 1.2.6  
-**Last Updated:** January 26, 2026
+**Version:** 1.4.0  
+**Last Updated:** January 2025
 
 ---
 
@@ -258,11 +258,36 @@ private function restore_products_to_public($product_ids) {
 ```
 Base URL: https://3ag.app/api/v3
 
-POST /licenses/validate  - Check if license key is valid
-POST /licenses/activate  - Activate license for domain
+POST /licenses/validate   - Check if license key is valid (returns status)
+POST /licenses/activate   - Activate license for domain
 POST /licenses/deactivate - Deactivate license from domain
-POST /licenses/check     - Check activation status for domain
+POST /licenses/check      - Check activation status for domain
 ```
+
+### License Status Values
+
+**API Status Values** (returned from server):
+- `active` - License is valid and active
+- `paused` - User paused their subscription
+- `suspended` - Payment issue or manual suspension
+- `expired` - License/subscription has expired
+- `cancelled` - Subscription was cancelled
+
+**Client-Only Status Values** (stored locally):
+- `invalid` - License key doesn't exist (401 from API)
+- `domain_limit` - Activation limit reached (403 with domain limit message)
+
+### Status UI Mapping
+
+| Status | Card Style | Actions Available |
+|--------|-----------|-------------------|
+| `active` | Green border | Verify, Deactivate |
+| `expired` | Yellow border | Renew, Try Different Key |
+| `cancelled` | Yellow border | Purchase New, Try Different Key |
+| `paused` | Yellow border | Manage Account (resume), Try Different Key |
+| `suspended` | Yellow border | Manage Account (fix payment), Try Different Key |
+| `domain_limit` | Yellow border | Manage Account (deactivate domains), Try Different Key |
+| `invalid` | Red border | Verify (re-check), Remove License, Try Different Key |
 
 ### License Check Flow
 
@@ -272,16 +297,22 @@ POST /licenses/check     - Check activation status for domain
    - license_key
    - product_slug: 'woo-stock-sync-from-csv'
    - domain: site domain (without http/www)
-3. On success:
+3. On success (200/201):
    - Store license key in wssc_license_key
-   - Store status in wssc_license_status = 'active'
+   - Store API status in wssc_license_status
    - Store license data in wssc_license_data
-4. Daily cron verifies license is still valid
+4. On 401 error:
+   - Store status as 'invalid' (key doesn't exist)
+5. On 403 error:
+   - If domain limit message → status = 'domain_limit'
+   - Otherwise call /validate to get actual status
+   - Store returned status (expired, paused, suspended, cancelled)
+6. Daily cron verifies license is still valid
 ```
 
 ### Grace Period
 
-If license check fails (API down, network issue), plugin continues working for 7 days before blocking sync.
+If license check fails due to network error (API down, timeout), the plugin continues working for 7 days before blocking sync. This prevents temporary outages from breaking production sites.
 
 ---
 

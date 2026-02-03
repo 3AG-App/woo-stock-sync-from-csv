@@ -596,7 +596,7 @@
             e.preventDefault();
 
             // Hide the current license info and actions, show the activation form
-            $('.wssc-license-key-display, .wssc-inactive-notice, .wssc-expired-notice, .wssc-invalid-notice, .wssc-license-actions, .wssc-different-license').hide();
+            $('.wssc-license-key-display, .wssc-status-notice, .wssc-inactive-notice, .wssc-expired-notice, .wssc-invalid-notice, .wssc-license-actions, .wssc-different-license').hide();
             $('#wssc-license-form').slideDown();
             $('#wssc-license-key').focus();
         },
