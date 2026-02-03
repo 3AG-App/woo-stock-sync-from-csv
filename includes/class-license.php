@@ -241,6 +241,7 @@ class WSSC_License {
         delete_option(self::OPTION_LICENSE_STATUS);
         delete_option(self::OPTION_LICENSE_DATA);
         delete_option(self::OPTION_LAST_CHECK);
+        delete_option('wssc_sync_disabled_by_license');
     }
     
     /**
@@ -285,11 +286,14 @@ class WSSC_License {
     private function disable_sync_due_to_license($result) {
         $currently_enabled = get_option('wssc_enabled', false);
         
-        // Only store the flag if sync is currently enabled
-        // This prevents overwriting the flag if sync was already disabled
-        if ($currently_enabled) {
-            update_option('wssc_sync_disabled_by_license', true);
+        // Only take action if sync is currently enabled
+        // This prevents duplicate logs and flag overwrites on consecutive checks
+        if (!$currently_enabled) {
+            return;
         }
+        
+        // Store the flag so we can restore later
+        update_option('wssc_sync_disabled_by_license', true);
         
         // Disable sync
         update_option('wssc_enabled', false);

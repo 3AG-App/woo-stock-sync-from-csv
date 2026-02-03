@@ -293,8 +293,9 @@ class WSSC_Ajax {
         
         $result = WSSC()->license->deactivate();
         
-        // Disable sync
+        // Disable sync and clear restore flag
         update_option('wssc_enabled', false);
+        delete_option('wssc_sync_disabled_by_license');
         WSSC()->scheduler->unschedule();
         
         if ($result['success']) {
