@@ -1,7 +1,7 @@
 # WooCommerce Stock Sync from CSV - Plugin Logic Documentation
 
-**Version:** 1.4.0  
-**Last Updated:** January 2025
+**Version:** 1.4.1  
+**Last Updated:** February 2026
 
 ---
 
