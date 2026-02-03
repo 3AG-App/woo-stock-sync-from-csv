@@ -20,10 +20,53 @@ if (!current_user_can('activate_plugins')) {
 }
 
 /**
+ * Deactivate license from 3AG License API
+ * This frees up the activation slot for use on another domain
+ */
+function wssc_uninstall_deactivate_license() {
+    $license_key = get_option('wssc_license_key');
+    
+    if (empty($license_key)) {
+        return;
+    }
+    
+    // Get the domain
+    $site_url = site_url();
+    $parsed = wp_parse_url($site_url);
+    $domain = isset($parsed['host']) ? $parsed['host'] : '';
+    $domain = preg_replace('/^www\./', '', $domain);
+    $domain = preg_replace('/:\d+$/', '', $domain);
+    
+    if (empty($domain)) {
+        return;
+    }
+    
+    // Make API request to deactivate
+    $response = wp_remote_post('https://3ag.app/api/v3/licenses/deactivate', [
+        'timeout' => 15,
+        'headers' => [
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+        ],
+        'body' => wp_json_encode([
+            'license_key'  => $license_key,
+            'product_slug' => 'woo-stock-sync-from-csv',
+            'domain'       => $domain,
+        ]),
+    ]);
+    
+    // We don't need to check the response - best effort deactivation
+    // The license will still be deleted locally regardless
+}
+
+/**
  * Clean up all plugin data
  */
 function wssc_uninstall_cleanup() {
     global $wpdb;
+    
+    // First, deactivate the license from the API
+    wssc_uninstall_deactivate_license();
     
     // Delete all plugin options
     $options_to_delete = [

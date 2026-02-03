@@ -229,7 +229,22 @@ class WSSC_Ajax {
                 'data' => $result['data'],
             ]);
         } else {
-            wp_send_json_error($result);
+            // Provide user-friendly error messages for common cases
+            $message = isset($result['message']) ? $result['message'] : __('Activation failed.', 'woo-stock-sync');
+            
+            // Check for domain limit error
+            if (strpos($message, 'Domain limit') !== false || strpos($message, 'limit reached') !== false) {
+                $message = __('Domain activation limit reached. Please deactivate another domain from your license dashboard first.', 'woo-stock-sync');
+            }
+            
+            // Check for license not active error (403)
+            if (strpos($message, 'not active') !== false || strpos($message, 'is not active') !== false) {
+                $message = __('This license is not active. It may be expired, suspended, or cancelled.', 'woo-stock-sync');
+            }
+            
+            wp_send_json_error([
+                'message' => $message,
+            ]);
         }
     }
     
@@ -256,7 +271,17 @@ class WSSC_Ajax {
                 'data' => $result['data'],
             ]);
         } else {
-            wp_send_json_error($result);
+            // Provide user-friendly error messages for common cases
+            $message = isset($result['message']) ? $result['message'] : __('Activation failed.', 'woo-stock-sync');
+            
+            // Check for domain limit error
+            if (strpos($message, 'Domain limit') !== false || strpos($message, 'limit reached') !== false) {
+                $message = __('Domain activation limit reached. Please deactivate another domain from your license dashboard first.', 'woo-stock-sync');
+            }
+            
+            wp_send_json_error([
+                'message' => $message,
+            ]);
         }
     }
     

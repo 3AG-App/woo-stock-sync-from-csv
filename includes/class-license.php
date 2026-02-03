@@ -153,6 +153,11 @@ class WSSC_License {
                 update_option(self::OPTION_LICENSE_STATUS, 'invalid');
                 update_option(self::OPTION_LICENSE_DATA, $result['data']);
             }
+        } elseif (!$result['success']) {
+            // API error (401 invalid key, 422 validation error, etc.)
+            // Clear local status but keep the key so user knows what was entered
+            update_option(self::OPTION_LICENSE_STATUS, 'invalid');
+            delete_option(self::OPTION_LICENSE_DATA);
         }
         
         return $result;

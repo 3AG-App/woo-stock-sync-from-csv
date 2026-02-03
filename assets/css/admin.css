@@ -1459,6 +1459,14 @@
     background: var(--wssc-danger);
 }
 
+.wssc-toast-warning {
+    background: var(--wssc-warning);
+}
+
+.wssc-toast-info {
+    background: var(--wssc-primary);
+}
+
 @keyframes wssc-toast-in {
     from {
         opacity: 0;
